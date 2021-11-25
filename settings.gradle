@@ -1,0 +1,3 @@
+include ':app'
+include 'thingylib'
+rootProject.name = "CPS_WSAN_2021_scratch"
