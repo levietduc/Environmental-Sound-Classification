@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mainLayout"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    tools:context="cps_wsan_2021.MainActivity">
+
+    <ScrollView
+        android:id="@+id/masterContainerView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#E9E9E9"
+        android:isScrollContainer="true"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:id="@+id/mainArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+        <LinearLayout
+            android:id="@+id/clusterArea"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.0">
+
+            <TextView
+                android:id="@+id/textView3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:enabled="false"
+                android:foregroundTint="@color/background"
+                android:freezesText="true"
+                android:text="Cluster"
+                android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                android:textColor="#3F51B5"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="59dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/scanClusterButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SCAN" />
+
+                <Button
+                    android:id="@+id/connectThingyButton"
+                    android:layout_width="112dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Connect" />
+
+                <Button
+                    android:id="@+id/disconnectThingyButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/disconnect" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/txtLogCluster"
+                android:layout_width="match_parent"
+                android:layout_height="87dp"
+                android:ems="10"
+                android:enabled="true"
+                android:focusable="auto"
+                android:gravity="start|top"
+                android:inputType="textMultiLine"
+                android:selectAllOnFocus="true"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/saveSoundButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="@string/startSave" />
+
+            <TextView
+                android:id="@+id/logSoundEvent"
+                android:layout_width="match_parent"
+                android:layout_height="140dp"
+                android:enabled="true"
+                android:focusableInTouchMode="true"
+                android:isScrollContainer="true"
+                android:scrollbarAlwaysDrawVerticalTrack="true"
+                android:scrollbars="vertical"
+                android:textSize="10sp" />
+
+
+        </LinearLayout>
+
+
+            <LinearLayout
+                android:id="@+id/clusterHeadLinearLayout"
+                android:layout_width="match_parent"
+                android:layout_height="380dp"
+                android:layout_alignParentBottom="true"
+                android:orientation="vertical"
+
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <LinearLayout
+                    android:id="@+id/clhIDLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/ClusterHeadText"
+                        android:layout_width="220dp"
+                        android:layout_height="match_parent"
+                        android:enabled="false"
+                        android:foregroundTint="@color/background"
+                        android:freezesText="true"
+                        android:gravity="center_vertical"
+                        android:text="Cluster Head ID (1..126)"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textColor="#3F51B5"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/clusterHeadIDtext"
+                        android:layout_width="55dp"
+                        android:layout_height="match_parent"
+                        android:editable="true"
+                        android:enabled="true"
+                        android:gravity="bottom|center_vertical|end"
+                        android:inputType="numberDecimal"
+                        android:lineSpacingExtra="0sp"
+                        android:selectAllOnFocus="true"
+                        android:singleLine="true"
+                        android:text="1"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Body2"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:typeface="normal" />
+
+                    <CheckBox
+                        android:id="@+id/isSinkCheck"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center_vertical"
+                        android:text="Sink" />
+
+                </LinearLayout>
+
+
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/TxPowerText"
+                            android:layout_width="92dp"
+                            android:layout_height="wrap_content"
+                            android:enabled="false"
+                            android:foregroundTint="@color/background"
+                            android:freezesText="true"
+                            android:text="Tx Power"
+                            android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                            android:textColor="#3F51B5"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <Spinner
+                            android:id="@+id/selectTxPowerSpinner"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:entries="@array/Tx_power"
+                            android:spinnerMode="dropdown" />
+
+                        <TextView
+                            android:id="@+id/textView2"
+                            android:layout_width="6dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Name" />
+
+                        <EditText
+                            android:id="@+id/txtName"
+                            android:layout_width="12dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:ems="10"
+                            android:inputType="textPersonName"
+                            android:text="Clh" />
+
+                    </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/clhButtonLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0"
+
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/StartClhButton"
+                        android:layout_width="115dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:text="Start" />
+
+                    <Button
+                        android:id="@+id/clhDiscoverButton"
+                        android:layout_width="170dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Discover" />
+
+                    <Button
+                        android:id="@+id/clearLogClhButton"
+                        android:layout_width="149dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Clear Log" />
+
+                </LinearLayout>
+
+
+                <EditText
+                    android:id="@+id/clhLogtext"
+                    android:layout_width="match_parent"
+                    android:layout_height="173dp"
+                    android:ems="10"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:inputType="textMultiLine|textPersonName|text"
+                    android:selectAllOnFocus="false"
+                    android:textSize="10sp" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+    </ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

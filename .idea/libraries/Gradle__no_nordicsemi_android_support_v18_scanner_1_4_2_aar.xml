@@ -1,0 +1,17 @@
+<component name="libraryTable">
+  <library name="Gradle: no.nordicsemi.android.support.v18:scanner:1.4.2@aar">
+    <CLASSES>
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/542635c0cb21258f1e19cd724b68a307/jetified-scanner-1.4.2/res" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/eff2d991787a5a751f4b816ab1e55495/scanner-1.4.2/res" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/2b66d31970988a288b9b4ebc10bb0fc5/jetified-scanner-1.4.2/res" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/2b66d31970988a288b9b4ebc10bb0fc5/jetified-scanner-1.4.2/AndroidManifest.xml" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/2b66d31970988a288b9b4ebc10bb0fc5/jetified-scanner-1.4.2/jars/classes.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/no.nordicsemi.android.support.v18/scanner/1.4.2/28efef4e84941509d59c7a3476a30f883c8e0255/scanner-1.4.2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/no.nordicsemi.android.support.v18/scanner/1.4.2/fbff249462803afda591b711f464838fd0434d22/scanner-1.4.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
