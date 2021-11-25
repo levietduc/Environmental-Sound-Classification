@@ -21,11 +21,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CPS_WSAN_2021_scratch">
         <activity
-            android:name="cps_wsan_2021.SoundFileMenu"
-            android:exported="false"
-            android:label="@string/title_activity_sound_file_menu"
-            android:theme="@style/Theme.CPS_WSAN_2021_scratch.NoActionBar" />
-        <activity
             android:name="cps_wsan_2021.MainActivity"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
