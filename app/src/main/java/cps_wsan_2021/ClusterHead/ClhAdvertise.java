@@ -3,6 +3,7 @@ package cps_wsan_2021.ClusterHead;
 import static cps_wsan_2021.ClusterHead.ClhConst.DEFAULT_CLUSTER_HEAD_ID;
 import static cps_wsan_2021.ClusterHead.ClhConst.MAX_ADV_DATA_LENGTH;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
@@ -70,7 +71,7 @@ public class ClhAdvertise {
     }
 
 
-
+    @SuppressWarnings("MissingPermission")
     public int initCLHAdvertiser(ClhParams settings)
     {
         int error;
@@ -232,6 +233,7 @@ public class ClhAdvertise {
   data[]: data
 
  --------*/
+    @SuppressLint("MissingPermission")
     private int startAdvertiser(byte[] settings, byte[] data) {
         //setting and start advertiser
         //@param: settings: configuration
@@ -327,6 +329,7 @@ public class ClhAdvertise {
 
     }
 
+    @SuppressLint("MissingPermission")
     private void stopAdvertiser()
     {
         if(mIsAdvertising==false)
@@ -381,7 +384,7 @@ public class ClhAdvertise {
     {
         return printSendList;
     }
-
+    @SuppressLint("MissingPermission")
     public int setAdvname(String name){
         if (!BluetoothAdapter.getDefaultAdapter().setName(name)) {
             Log.i(LOG_TAG, "Advertiser: set name fail" );

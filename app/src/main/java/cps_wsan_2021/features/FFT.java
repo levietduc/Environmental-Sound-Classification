@@ -1,5 +1,7 @@
 package cps_wsan_2021.features;
 
+import java.util.Arrays;
+
 /**
  * Fast Fourier Transform.
  *
@@ -24,7 +26,7 @@ public class FFT {
     public void process(double[] signal) {
         final int numPoints = signal.length;
         // initialize real & imag array
-        real = signal;
+        real = Arrays.copyOf(signal,signal.length);
         imag = new double[numPoints];
 
         // perform FFT using the real & imag array

@@ -5,6 +5,11 @@
       <map>
         <entry key="..\:/Android/CPS_WSAN_2021_scratch/app/src/main/res/layout/activity_main.xml" value="0.1" />
         <entry key="..\:/Android/CPS_WSAN_2021_scratch/app/src/main/res/layout/content_scrolling.xml" value="0.1" />
+        <entry key="..\:/Android/SoundClassification/app/src/main/res/layout-w1240dp/content_scrolling.xml" value="0.1" />
+        <entry key="..\:/Android/SoundClassification/app/src/main/res/layout/activity_main.xml" value="0.1" />
+        <entry key="..\:/Android/SoundClassification/app/src/main/res/layout/activity_sound_file_menu.xml" value="0.1" />
+        <entry key="..\:/Android/SoundClassification/app/src/main/res/layout/content_scrolling.xml" value="0.10572916666666667" />
+        <entry key="..\:/Android/SoundClassification/app/src/main/res/layout/settings_activity.xml" value="0.1" />
       </map>
     </option>
   </component>

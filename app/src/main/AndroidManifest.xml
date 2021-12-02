@@ -21,6 +21,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CPS_WSAN_2021_scratch">
         <activity
+            android:name="cps_wsan_2021.SettingsActivity"
+            android:exported="false"
+            android:label="@string/title_activity_settings" />
+        <activity
             android:name="cps_wsan_2021.MainActivity"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

@@ -19,6 +19,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import android.provider.Settings;
@@ -54,7 +55,9 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
+import java.nio.charset.Charset;
 import java.sql.Timestamp;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -70,13 +73,16 @@ import cps_wsan_2021.ClusterHead.ClhScan;
 import cps_wsan_2021.ClusterHead.ClusterHead;
 import cps_wsan_2021.FFT.Complex;
 import cps_wsan_2021.FFT.FFT1;
+import cps_wsan_2021.File.SaveConfig;
 import cps_wsan_2021.common.ExtendedBluetoothDevice;
 import cps_wsan_2021.common.InputFilterMinMax;
 import cps_wsan_2021.common.MessageDialogFragment;
 import cps_wsan_2021.common.PCMtoWAV;
 import cps_wsan_2021.common.PermissionRationaleDialogFragment;
 import cps_wsan_2021.common.Utils;
+import cps_wsan_2021.features.ConfigConst;
 import cps_wsan_2021.features.MFCCnew;
+import cps_wsan_2021.features.SoundObj;
 import cps_wsan_2021.thingy.ThingyService;
 import no.nordicsemi.android.support.v18.scanner.BluetoothLeScannerCompat;
 import no.nordicsemi.android.support.v18.scanner.ScanCallback;
@@ -100,11 +106,11 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private static final int SCAN_DURATION = 10000;
     private final static long THINGY_SCAN_DURATION = 5000; //scan Thingy for 5 sec
     private final static long THINGY_BATCH_SCAN_DURATION=500;
-    private final static int MAX_THINGIES_CLUSTER=5; //max thingies a cluster head can connect to
+    private final static int MAX_THINGIES_CLUSTER=3; //max thingies a cluster head can connect to
     private final static int THINGY_MICROPHONE_SAMPLING_FREQ=16000;
     private ThingySdkManager mThingySdkManager;
     private ThingyService.ThingyBinder mBinder;
-    private ArrayList<ExtendedBluetoothDevice> mConnectedBleDeviceList;
+    private ArrayList<ExtendedBluetoothDevice> mConnectedBleDeviceList; //list of connected Thingies, include names
     private static boolean mAutoConnect=false;
     private static boolean mAutoDisConnect=false;
     private Handler mThingyScannerHandler;
@@ -120,18 +126,22 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private final List<ExtendedBluetoothDevice> mScanresults=new ArrayList<>();
     private List<ExtendedBluetoothDevice> mSaveScan;
     private List<ExtendedBluetoothDevice> mAvaibleThingies =new ArrayList<>();
+    private LinkedHashMap<BluetoothDevice,SoundObj> mSoundObjects=new LinkedHashMap<>();
 
     private Button mScanClusterButton;
     private Button mConnectThingyButton;
     private Button mDisconnectThingButton;
     private Button mSaveSoundButton;
+    private Button mClassifyButton;
 
     private TextView mClusterLogText;
     private TextView mSoundEventLog;
     private EditText mtxtClhNameInp;
 
-
-
+    private int ylabelInt;
+    private final static String[] ylabelStr={"dogbark","babycry","chainsaw", "clocktick",
+            "firecrack", "helicopter", "rain", "rooster", "seawave", "sneeze"};
+    private int[] mTruePos={0,0,0,0,0,0,0,0,0,0};
 
     private Spinner mTxPowerSelect;
     private Button mStartClh;
@@ -162,13 +172,36 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private LinkedHashMap<String, File> soundFileName=new LinkedHashMap<>();
     private LinkedHashMap<String, File> soundFileNameWav=new LinkedHashMap<>();
 
-    private final int NUM_OF_SOUND_PACKET=64; //16000/256
-    private byte[][] mSoundArr=new byte[5][512*NUM_OF_SOUND_PACKET];
+    private final int NUM_OF_SOUND_PACKET=312; //80000(5s)/25=312.5
+    private byte[][] mSoundArr=new byte[MAX_CONNECTED_THINGIES][512*NUM_OF_SOUND_PACKET];
+    private int mSampleRate=16000;
+    private int mSoundWindPeriod=5000; //5s
+    private int mSoundStrideTime=2500; //2.5s
+    private int mSoundWindSize=mSoundWindPeriod*mSampleRate;
+    private int mSlideWindSize=mSoundStrideTime*mSampleRate;
     private LinkedHashMap<String, Integer> mSoundVarCount=new LinkedHashMap<>();
     private LinkedHashMap<String, byte[]> mSoundVar=new LinkedHashMap<>();
 
+    private static SaveConfig mSaveCfg;
+    private boolean mClassifyEnable=false;
 
+    private final static List<String> colorOrder=new ArrayList<String>(){{
+        add("yellow");
+        add("orange");
+        add("red");
+        add("blue");
+        add("green");
+        add("purple");
+        add("cyan");
+        add("darkYellow");
+        add("darkOrange");
+        add("darkRed");
+        add("darkGreen");
+        add("darkPurple");
+        add("darkCyan");
+        add("darkBlue");
 
+    }};
     private final static LinkedHashMap<String, Integer> colorDefine = new LinkedHashMap<String, Integer>() {{
         put("yellow",0x00FF8000);
         put("orange",0x00FF2000);
@@ -424,12 +457,12 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
         ExtendedBluetoothDevice maxBlT = null;
         int sz=devices.size();
-        if(sz>MAX_CONNECTED_THINGIES)
-        {
-            sz=MAX_CONNECTED_THINGIES;
-        }
-        sz-=mThingySdkManager.getConnectedDevices().size();//max connectable devices- minus connected devices
+        int connectedDv=mThingySdkManager.getConnectedDevices().size();//max connectable devices- minus connected devices
 
+        if(sz>MAX_CONNECTED_THINGIES-connectedDv)
+        {
+            sz=MAX_CONNECTED_THINGIES-connectedDv;
+        }
         int max=-110;
         for(int i=0;i<sz;i++) {
             int ch=0;
@@ -540,9 +573,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     connectSelectedDevice(mAvaibleThingies, mThingyListIndex); //connect next device
                 else {
                     //finished all items
-                    //
-                    //broad cast data to network
-                    //PSnote broadcastCluster();
+
+
                     mAutoConnect=false;
                     enableAllClusterButtons();// ->enable sound stream of each the back to Sound Fragment
                     List<BluetoothDevice> connectDevices = mThingySdkManager.getConnectedDevices();
@@ -551,19 +583,41 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         mClusterLogText.append("Connected devices:");
                         for (BluetoothDevice dv : connectDevices) {
                             mThingySdkManager.enableThingyMicrophone(dv, true,THINGY_MICROPHONE_SAMPLING_FREQ, true); //enable sound stream
-                            int color=colorDefine.get("blue");
+                            int color=colorDefine.get("darkBlue");
                             int red=(color&0x00FF0000)>>16;
                             int green=(color&0x0000FF00)>>8;
                             int blue=(color&0x000000FF);
                             mThingySdkManager.setConstantLedMode(dv,red,green,blue);
+                            if (mSoundObjects.containsKey(dv))
+                            {
+                                //SoundObj soundObj= mSoundObjects.get(dv);
+                                //soundObj.resetSoundBuff();
+                            }
+                            else
+                            {
+                                SoundObj soundOb=new SoundObj(ConfigConst.SOUND_SAMPLING_RATE,
+                                        ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE,
+                                        ConfigConst.SOUND_TIME_SERIES_WINDOWS_INC,
+                                        ConfigConst.SOUND_NFFT,
+                                        ConfigConst.SOUND_FRAME_LENGTH,
+                                        ConfigConst.SOUND_FRAME_STRIDE,
+                                        ConfigConst.SOUND_NOISE_FLOOR,
+                                        ConfigConst.ZERO_PAD,
+                                        ConfigConst.SOUND_SPECTROGRAM_MODE
+                                        );
+                                mSoundObjects.put(dv, soundOb);
+                            }
+
                         }
-                        for (ExtendedBluetoothDevice exdv:mConnectedBleDeviceList)
+                        for (BluetoothDevice dv:mThingySdkManager.getConnectedDevices())
                         {
-                            mClusterLogText.append(exdv.name+", ");
-                            Log.i(LOGTAG, "Connected device:" + exdv.name);
+                            mClusterLogText.append(mThingySdkManager.getDeviceName(dv)+", ");
+                            Log.i(LOGTAG, "Connected device:" + mThingySdkManager.getDeviceName(dv));
                         }
 
                         mSaveSoundButton.setEnabled(true);
+                        mClassifyButton.setEnabled(true);
+                        mClusterLogText.append("\r\n");
                         mClusterLogText.append("\r\n");
 
                         //init sound var
@@ -586,7 +640,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         Timestamp currentTime = new Timestamp(System.currentTimeMillis());
         String addr = dv.getAddress();
         Log.i("Test1", addr);
-        String name = dv.getName() + "_" + addr + "_" + currentTime + ".pcm";
+        //String name = mThingySdkManager.getDeviceName(dv) + "_" + addr + "_" + currentTime + ".pcm";
+        String name = mThingySdkManager.getDeviceName(dv) + "_" + currentTime + ".pcm";
         Log.i("Test1", name);
         File fname = new File(pathSoundData, name);
         soundFileName.put(dv.getAddress(), fname);
@@ -681,6 +736,14 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         if(connectDevices.size()>0)
         {
             Log.i(LOGTAG,"Disconecting all devices.");
+            for (BluetoothDevice dv:mThingySdkManager.getConnectedDevices()
+                 ) {
+                int color=colorDefine.get("darkBlue");
+                int red=(color&0x00FF0000)>>16;
+                int green=(color&0x0000FF00)>>8;
+                int blue=(color&0x000000FF);
+                mThingySdkManager.setConstantLedMode(dv,red,green,blue);
+            }
 
             //start disconnect first device
             //-> call back in mThingyListerner::onDeviceDisconnected
@@ -705,6 +768,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     }
 
     @SuppressLint("SetTextI18n")
+    @SuppressWarnings("IOException")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -734,7 +798,11 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mConnectThingyButton=findViewById((R.id.connectThingyButton));
         mDisconnectThingButton=findViewById(R.id.disconnectThingyButton);
         mSaveSoundButton=findViewById(R.id.saveSoundButton);
+        mClassifyButton=findViewById(R.id.ClassisfyButton);
+
         mClusterLogText=findViewById(R.id.txtLogCluster);
+        mClusterLogText.setMovementMethod(new ScrollingMovementMethod());
+
         mConnectedBleDeviceList = new ArrayList<>();
         mtxtClhNameInp=findViewById(R.id.txtName);
 
@@ -747,6 +815,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mStartClh=findViewById(R.id.StartClhButton);
         mClearLog=findViewById(R.id.clearLogClhButton);
         mClhLogText=findViewById(R.id.clhLogtext);
+        mClhLogText.setMovementMethod(new ScrollingMovementMethod());
         mSoundEventLog=findViewById(R.id.logSoundEvent);
         mSoundEventLog.setMovementMethod(new ScrollingMovementMethod());
 
@@ -766,46 +835,99 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mClhScanner=mClh.getClhScanner();
         mClhProcessor=mClh.getClhProcessor();
 
+        mSaveCfg=new SaveConfig("",0,1000,true,true,false,true);
+
         mClearLog.setOnClickListener(new View.OnClickListener() {
-           @Override
-           public void onClick(View v) {
+            @Override
+            public void onClick(View v) {
                mClhLogText.setText("");
 
+             /*   Intent intent = new Intent(MainActivity.this,
+                        SettingsActivity.class);
+                //intent.putExtra("Text",mSaveCfg);
+                startActivity(intent);*/
 
-              /* Intent intent = new Intent(MainActivity.this,
-                       SoundFileMenu.class);
-               intent.putExtra("Text","hello");
-               startActivity(intent);*/
+                String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+                Log.i(LOGTAG,"dir:"+baseDir);
+                pathSoundData=new File(baseDir,"soundData");
+                Log.i(LOGTAG,"dir:"+pathSoundData);
+                pathSoundData.mkdirs();
 
 //Pstest
-
-              /*for(int i=0;i<20;i++) {
-                   byte[] soundtest = null;
-
-                   String strName="faucet"+String.format("%2d",i);
-                   try {
-                       soundtest = readWav(i);
-                   } catch (IOException e) {
-                       e.printStackTrace();
-                   }
-                   float[] dt=getMFCCdata(soundtest);
-                   Float[] mfcc=new Float[dt.length];
-                   for(int j=0;j<dt.length;j++)
-                   {
-                       mfcc[j]=dt[j];
-                   }
-                   String str=soundClassify(mfcc,"12:34:56:78:12:23");
-                   Log.i(LOGTAG,"mfcc:"+Arrays.toString(dt));
-                   Log.i(LOGTAG,"soundClassi:"+i+":"+str);
+                int allowtest=0;
+                if (allowtest==1) {
 
 
-               }
-               byte[] soundtest = null;
+                    int totalTests = 77;
+                    int truePos = 0;
+                    float acc = 0;
+                    int v1 = 0;
+                    SoundObj soundOb = new SoundObj(ConfigConst.SOUND_SAMPLING_RATE,
+                            ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE,
+                            ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE,
+                            ConfigConst.SOUND_NFFT,
+                            ConfigConst.SOUND_FRAME_LENGTH,
+                            ConfigConst.SOUND_FRAME_STRIDE,
+                            ConfigConst.SOUND_NOISE_FLOOR,
+                            ConfigConst.ZERO_PAD,
+                            ConfigConst.SOUND_SPECTROGRAM_MODE);
+
+                    //for testing a stream
+                /*
+            for(int testidx=0;testidx<1000;testidx++) {
+                //int sz = ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE *mSampleRate * ConfigConst.SOUND_DATA_SIZE/1000;
+                byte[] soundtest = new byte[512];
+                for(int i=0;i<512;i+=2)
+                {
+                    soundtest[i]=(byte)(v1&0xff);
+                    soundtest[i+1]=(byte)((v1>>8)&0xff);
+                    v1++;
+                }
+                Float[] flatsp= soundOb.getSpectrogram(soundtest);
+
+                short[] mytest=soundOb.byteToShortArr(soundOb.getSoundData(),ByteOrder.LITTLE_ENDIAN);
+                int sz=(testidx+2)*256;
+                short[] mydsp= new short[sz];
+                System.arraycopy(mytest,mytest.length-(testidx+1)*256-128,mydsp,0,(testidx+1)*256+128);
+                Log.i(LOGTAG,"soundtest"+Arrays.toString(mydsp));
+                if(flatsp!=null) {
+                    int a = soundClassify(flatsp, "12:34:56:78:12:23");
+                    if (a == ylabelInt) {
+                        truePos++;
+                    }
+                }
+            }*/
 
 
-               SoundObj sound=new SoundObj(soundtest,16000,512,0.02f,0.01f,-54,3);
-               double[][] sp1=sound.spectrogram();
+                    //for test 1 file
+                    for (int testidx = 0; testidx < totalTests; testidx++) {
+                        //for(int testidx=100;testidx<=100;testidx++) {
+                        byte[] soundread;
+                        try {
+                            soundread = readWav(testidx);
+                            int sz = (int) (Math.ceil((float) soundread.length / 512) * 512);
+                            byte[] soundtest = new byte[sz];
+                            System.arraycopy(soundread, 0, soundtest, 0, soundread.length);
 
+                            Float[] flatsp = soundOb.getSpectrogram(soundtest);
+                            if (flatsp != null) {
+                                int a = soundClassify(flatsp, "12:34:56:78:12:23");
+                                if (a == ylabelInt) {
+                                    truePos++;
+                                }
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                            Toast.makeText(MainActivity.this, "File not found", Toast.LENGTH_SHORT).show();
+                        }
+
+                        //byte[] soundtest=new byte[512];
+
+                    }
+
+                    float accu = (float) truePos / totalTests;
+                }
+/*
                float[] mfcc1=getMFCCdata(soundtest);
                Log.i(LOGTAG,Arrays.toString(mfcc1));
                Float[] mfcc2=new Float[mfcc1.length];
@@ -814,8 +936,13 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                    mfcc2[j]=mfcc1[j];
                }
                soundClassify(mfcc2,"12:34:56:78:12:23");*/
+
+                             /* Intent intent = new Intent(MainActivity.this,
+                       SoundFileMenu.class);
+               intent.putExtra("Text","hello");
+               startActivity(intent);*/
            }
-         });
+        });
 
         mStartClh.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -959,6 +1086,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     if(mSaveSoundButton.getText()==getString(R.string.stopSave))
                          mSaveSoundButton.performClick();
                     mSaveSoundButton.setEnabled(false);
+                    mClassifyButton.setEnabled(false);
+                    mClassifyEnable=false;
                 }
                 else
                 {
@@ -967,13 +1096,41 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             }
         });
 
+
+        mClassifyButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick (View v) {
+                String str=mClassifyButton.getText().toString();
+                if(str.equals("START CLASSIFY")){
+                    mClassifyEnable=true;
+                    //mClassifyButton.setEnabled(true);
+                    mClassifyButton.setText("STOP CLASSIFY");
+                    mSaveSoundButton.setEnabled(false);
+                }
+                else
+                {
+                    mClassifyEnable=false;
+                    //mClassifyButton.setEnabled(true);
+                    mClassifyButton.setText("START CLASSIFY");
+                    mSaveSoundButton.setEnabled(true);
+                    for (BluetoothDevice dv:mThingySdkManager.getConnectedDevices()
+                         ) {
+                        mSoundObjects.get(dv).resetSoundBuff();
+                    }
+
+                }
+            }
+        });
+
         mSaveSoundButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick (View v){
                 List<BluetoothDevice> connectDevices = mThingySdkManager.getConnectedDevices();
-                if(mSaveSoundButton.getText()==getString(R.string.startSave))
+                String strbt=mSaveSoundButton.getText().toString();
+                if(strbt.equals(getString(R.string.startSave)))
                 {//start save sound data to file .pcm
                     mSaveSoundButton.setText(getString(R.string.stopSave));
+                    mClassifyButton.setEnabled(false);
 
                     soundFileName.clear();
                     for (BluetoothDevice dv : connectDevices) {
@@ -986,6 +1143,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                 {//convert file .pcm -> wav
                     mSaveSoundButton.setText(getString(R.string.startSave));
                     mSaveEnable=false;
+                    mClassifyButton.setEnabled(true);
+
                     for (String key:soundFileName.keySet()) {
                         File file=soundFileName.get(key);
                         String name=file.getName();
@@ -1122,9 +1281,15 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             }
         }, 1000); //the time you want to delay in milliseconds
 
-        pathSoundData=new File(getFilesDir(),"soundData");
+
+
+        /*pathSoundData=new File(getFilesDir(),"soundData");
         pathSoundData.mkdirs();
-        Log.i("Test1","Sound data folder"+  pathSoundData);
+        Log.i("Test1","Sound data folder"+  pathSoundData);*/
+        String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+        pathSoundData=new File(baseDir,"soundData");
+        Log.i(LOGTAG,"dir:"+pathSoundData);
+        pathSoundData.mkdirs();
 
     }
 
@@ -1173,16 +1338,18 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             Log.i(LOGTAG,"device disconect");
             mClusterLogText.append("**"+device.getName() + " disconnected** \r\n");
 
+            mSoundObjects.remove(device);
             //remove device from ext connected list
             for(ExtendedBluetoothDevice exdv:mConnectedBleDeviceList)
             {
                 if (exdv.device.getAddress().equals(device.getAddress()))
                 {
+
                     mConnectedBleDeviceList.remove(exdv);
                     break;
                 }
             }
-            enableAllClusterButtons(); //todo: a bug here to enable buttons while connecting
+            enableAllClusterButtons(); //Todo: a bug here to enable buttons while connecting
             if(mAutoConnect){
                 nextThingy(false); //reconnect
             }
@@ -1223,7 +1390,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
             enableSoundNotifications(device, true); //enable receive sound data
             enableUiNotifications();
-            int color=colorDefine.get("blue");
+            int color=colorDefine.get("darkBlue");
             int red=(color&0x00FF0000)>>16;
             int green=(color&0x0000FF00)>>8;
             int blue=(color&0x000000FF);
@@ -1379,79 +1546,80 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                                 }
                             }
                             else {
-                                String addr=dv.getAddress();
-                                Integer cnt=mSoundVarCount.get(addr);
-                                System.arraycopy(data, 0, mSoundVar.get(addr), cnt*512, 512);
-                                if (++cnt<NUM_OF_SOUND_PACKET)
-                                {
-                                    mSoundVarCount.put(addr,cnt);
-                                }
-                                else
-                                {
-                                    cnt=0;
-                                    //Log.i("Test2",Arrays.toString(mSoundVar.get(dv.getAddress())));
-
+                                if (mClassifyEnable==true) {
+                                    String addr = dv.getAddress();
                                     //Todo: call process data here
-
-                                            byte[] data2=mSoundVar.get(addr);
-                                            String str=processSoundData(data2,addr);
- /*                                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
-                                    }
-                                    ;
                                     LocalTime localDate1 = LocalTime.now();
+                                    //byte[] data2 = mSoundVar.get(addr);
 
-                                   //PStest Float[] mfcc1=getMFCCdata(data2);
-                                    byte[] data3=Arrays.copyOfRange(data2,0,16000);
-                                    float[] dt=getMFCCdata(data3);
-                                    Float[] mfcc1=new Float[dt.length];
-                                    for(int j=0;j<dt.length;j++)
-                                    {
-                                        mfcc1[j]=dt[j];
-                                    }
+                                    SoundObj sound = mSoundObjects.get(dv);
+                                    Float[] flatsp = sound.getSpectrogram(data);
+                                    if (flatsp != null) {
+                                        int a = soundClassify(flatsp, "12:34:56:78:12:23");
+                                        if (a == mTruePos.length) {
+                                            Log.i(LOGTAG, "Thingy:" + mThingySdkManager.getDeviceName(dv) +
+                                                    ",classified result:uncertain");
+                                        } else {
+                                            LocalTime localDate2 = LocalTime.now();
+                                            String dvname=mThingySdkManager.getDeviceName(dv);
 
-                                    String clRs=soundClassify(mfcc1,addr);
-                                            Log.i("MFCC",Arrays.toString(mfcc1));
-                                    LocalTime localDate2 = LocalTime.now();
-                                    Log.i("MFCC","Start:"+localDate1.toString());
-                                    Log.i("MFCC","Done:"+localDate2.toString());*/
-
-
-
-                                    String[] tokens = str.split("LED color:");
-                                            String verbal=tokens[0];
-                                            Log.i("Test3", verbal);
-                                            if (tokens.length>=2) {//get color
-                                                Log.i("Test3", tokens[1] );
-                                                String[] tokens2=tokens[1].split("toSink:");
-
-                                                String[] tokens3 = tokens2[0].split("@");
-                                                String strLed=tokens3[0].trim();
-                                                String macAddr=(tokens3[1].trim()).replace("\r\n","");
-                                                if(!strLed.equals("unchanged"))
-                                                {
-                                                    mSoundEventLog.append(verbal); //display verbal in mSoundEventLog textbox
-                                                    int color=colorDefine.get(strLed);
-                                                    int red=(color&0x00FF0000)>>16;
-                                                    int green=(color&0x0000FF00)>>8;
-                                                    int blue=(color&0x000000FF);
-                                                    mThingySdkManager.setConstantLedMode(dv,red,green,blue);
-                                                }
-                                                if(tokens2.length>=2)
-                                                {
-                                                    String strAdv=(tokens2[1].trim()).replace("\r\n","");
-                                                    byte[] dataAdv=hexStringToByteArray(strAdv);
-                                                    if (mIsAdvertising) {
-                                                        int t=mClhAdvertiser.addAdvSoundData(dataAdv);
-                                                        if (t==0) mClhLogText.append("Err\r\n");
-
-                                                    }
-                                                }
+                                            String str=dvname+"@"+localDate2+":"+ylabelStr[a]+"\r\n";
+                                            Log.i(LOGTAG, "Thingy:" + mThingySdkManager.getDeviceName(dv) +
+                                                    ",classified result: " + ylabelStr[a]);
+                                            mSoundEventLog.append(str); //display verbal in mSoundEventLog textbox
+                                            //send data to sink
+                                            Charset charset = Charset.forName("ASCII");
+                                            byte[] byteArrray = dvname.getBytes(charset);
+                                            byte[] dataAdv=new byte[10];
+                                            int len=byteArrray.length;
+                                            //get 2 last character name
+                                            if(len>=2) {
+                                                dataAdv[0] = (byte) byteArrray[len - 2];
+                                                dataAdv[1] = (byte) byteArrray[len - 1];
                                             }
+                                            else if (len==1){
+                                                dataAdv[0] = (byte) byteArrray[len - 1];
+                                                dataAdv[1] = 0;
+                                            }
+                                            else {
+                                                dataAdv[0] = 0;
+                                                dataAdv[1] = 0;
+                                            }
+                                            String[] strtime = localDate2.toString().split(":");
+                                            byte hour = Byte.parseByte(strtime[0]);
+                                            byte min = Byte.parseByte(strtime[1]);
+                                            String[] strsec = strtime[2].toString().split(".");
+                                            byte sec = Byte.parseByte(strtime[0]);
+                                            dataAdv[2]=hour;
+                                            dataAdv[3]=min;
+                                            dataAdv[4]=sec;
+                                            dataAdv[5]=(byte)a;
+                                            String strLed=colorOrder.get(a);
+                                            int color=colorDefine.get(strLed);
+                                            int red=(color&0x00FF0000)>>16;
+                                            int green=(color&0x0000FF00)>>8;
+                                            int blue=(color&0x000000FF);
+
+                                            mThingySdkManager.setConstantLedMode(dv,red,green,blue);
+
+                                            if (mIsAdvertising) {
+                                                int t=mClhAdvertiser.addAdvSoundData(dataAdv);
+                                                if (t==0) mClhLogText.append("Err\r\n");
+
+                                            }
+                                        }
+                                    }
+                                    /*Float[] flatsp=sound.getSpectrogram(data2); //Todo:result here
+                                    if(flatsp!=null) {
+                                        int a = soundClassify(flatsp, "12:34:56:78:12:23");
+                                        LocalTime localDate2 = LocalTime.now();
+                                        Log.i(LOGTAG, "class:" + ylabelStr[a]);
+                                        Log.i(LOGTAG, " Classify Start:" + localDate1.toString());
+                                        Log.i(LOGTAG, " Classify Done:" + localDate2.toString());
+
+                                    }*/
+
                                 }
-                                mSoundVarCount.put(dv.getAddress(),cnt);
-
-
 
                             }
                         }
@@ -1460,47 +1628,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             }
         }
     };
-    //long time1=currentTimeMillis();
-  /*  private void writeAudioDataToFile() {
-        // Write the output audio in byte
-        int BufferElements2Rec = 1024; // want to play 2048 (2K) since 2 bytes we
-        // use only 1024
-        int BytesPerElement = 2; // 2 bytes in 16bit format
-
-        String filePath = "/sdcard/voice8K16bitmono.pcm";
-        short sData[] = new short[BufferElements2Rec];
-
-        FileOutputStream os = null;
-        try {
-            os = new FileOutputStream(filePath);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        while (isRecording) {
-            // gets the voice output from microphone to byte format
-
-            recorder.read(sData, 0, BufferElements2Rec);
-            System.out.println("Short wirting to file" + sData.toString());
-            try {
-                // // writes the data to file from buffer
-                // // stores the voice buffer
-
-                byte bData[] = short2byte(sData);
-
-                os.write(bData, 0, BufferElements2Rec * BytesPerElement);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        try {
-            os.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-*/
 
     private void enableUiNotifications() {
         mThingySdkManager.enableButtonStateNotification(mDevice, true);
@@ -1718,7 +1845,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     }
 
 
-
     private String processSoundData(byte[] data, String Mac)
     {
         String retStr;
@@ -1812,32 +1938,27 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     }
 
 
-    private String soundClassify(Float[] X,String Mac)
+    //private String soundClassify(Float[] inF,String Mac)
+    private int soundClassify(Float[] inF,String Mac)
     {
-        float[] retString;
+        String[] retString;
+        float[] classifyResult=null;
+         int XROW_SIZE=1;
+         int XCOL_SIZE=inF.length;
 
-         int XROW_SIZE=50;
-        int XCOL_SIZE=13;
-
- /*       Float[][] X_img = new Float[XROW_SIZE][XCOL_SIZE];
-        for ( int i = 0; i < XROW_SIZE; i++ ) {
-            System.arraycopy(X, (i * XCOL_SIZE), X_img[i], 0, XCOL_SIZE);
-        }
-        Log.d(LOGTAG,"X_img  = " + Arrays.toString(X_img));*/
-
-        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * 13 * 50 * 1);
+        //ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * XROW_SIZE * XCOL_SIZE * 1);
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * XCOL_SIZE *XROW_SIZE* 1);
         byteBuffer.order(ByteOrder.nativeOrder());
-        for (int i=0; i<X.length; i++)
-            byteBuffer.putFloat(X[i]); // only one channel
+        byteBuffer.putFloat(1.0f);
         byteBuffer.rewind();
 
+        for (int i=0; i<inF.length; i++) {
+            byteBuffer.putFloat(inF[i]);
+        }
         byteBuffer.rewind();
-        // 4 bytes (float), XROW_SIZE x XROW_SIZE x 1
-        // X = 0;
-        // 4. Compute the location of X, Y = (lat, lng, floor).
-        // Tensorflow lite model
-        // Initialize interpreter with GPU delegate
+
         Model.Options options;
+        //don't use gpu
         /*CompatibilityList compatList = new CompatibilityList();
 
         if(compatList.isDelegateSupportedOnThisDevice()){
@@ -1858,13 +1979,10 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             // Runs model inference and gets result.
             SoundClassification.Outputs outputs = model.process(inputFeature0);
             TensorBuffer outputFeature0 = outputs.getOutputFeature0AsTensorBuffer();
-            retString=outputFeature0.getFloatArray();
+            classifyResult=outputFeature0.getFloatArray();
             Log.i(LOGTAG,"Output  = " + Arrays.toString(outputFeature0.getFloatArray()));
             // Releases model resources if no longer used.
             model.close();
-
-//            setText("dX="+Math.round(xy.x)+"m, dY="+Math.round(xy.y)+"m\nDistance:"+Math.round(dst[0]) +"m");
-            //setText("dX="+Math.round(xy.x)+"m, dY="+Math.round(xy.y)+"m\nPos:"+latLng.latitude +", " + latLng.longitude);
 
 
         } catch (IOException e) {
@@ -1872,120 +1990,375 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             retString=null;
 
         }
-        String retStr;
-        String verbal,verbal1;
-        String strLed;
-        String advMAC= Mac.replace(":","");
-        String advStr;
-        if(retString[0]>retString[1])
+
+        float max=classifyResult[0];
+        int maxIdx=0;
+        for(int i=1;i<10;i++)
         {
-            verbal1=("no sound, output=");
-            verbal=verbal1+ Arrays.toString(retString);
-            strLed="LED color:"+"green"+" @"+ Mac;
-            advStr=null;
+            if (classifyResult[i]>max)
+            {
+                maxIdx=i;
+                max=classifyResult[i];
+            }
         }
-        else
-        {
-            verbal1=("had clap, output=");
-            verbal=verbal1+ Arrays.toString(retString);
-            strLed="LED color:"+"red"+" @"+ Mac;
-            advStr="toSink:"+advMAC+"01";
-
-        }
-        retStr=verbal +"\r\n"+ strLed +"\r\n" +advStr;
-        Log.i(LOGTAG,retStr);
-        return retStr;
-
-
+        if(max<0.5) maxIdx=classifyResult.length; //uncertain result
+        return maxIdx;
     }
 
     public byte[] readWav(int step) throws IOException {
         byte[] wavData=null;
-        try {
-            int idx=0;
-            switch (step)
-            {
-                case 0:
-                    idx=R.raw.faucet60;
-                    break;
-                case 1:
-                    idx=R.raw.faucet61;
-                    break;
-                case 2:
-                     idx=R.raw.faucet62;
-                    break;
-                case 3:
-                    idx=R.raw.faucet63;
-                    break;
-                case 4:
-                    idx=R.raw.faucet64;
-                    break;
-                case 5:
-                    idx=R.raw.faucet65;
-                    break;
-                case 6:
-                    idx=R.raw.faucet66;
-                    break;
-                case 7:
-                    idx=R.raw.faucet67;
-                    break;
-                case 8:
-                    idx=R.raw.faucet68;
-                    break;
-                case 9:
-                    idx=R.raw.faucet69;
-                    break;
-                case 10:
-                    idx=R.raw.noise60;
-                    break;
-                case 11:
-                    idx=R.raw.noise61;
-                    break;
-                case 12:
-                    idx=R.raw.noise62;
-                    break;
-                case 13:
-                    idx=R.raw.noise63;
-                    break;
-                case 14:
-                    idx=R.raw.noise64;
-                    break;
-                case 15:
-                    idx=R.raw.noise65;
-                    break;
-                case 16:
-                    idx=R.raw.noise66;
-                    break;
-                case 17:
-                    idx=R.raw.noise67;
-                    break;
-                case 18:
-                    idx=R.raw.noise68;
-                    break;
-                case 19:
-                    idx=R.raw.noise69;
-                    break;
-            }
-            InputStream is = getResources().openRawResource(idx);
-            wavData = new byte[is.available()];
-            String readBytes = String.format(Locale.US, "read bytes = %d", is.read(wavData));
-            Log.d(LOGTAG, readBytes);
 
-            is.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+        int idx=0;
+       /* switch (step)
+        {
+            case 100: //test 1 file
+                idx=R.raw.dogbark40;
+                ylabelInt=0;
+                break;
+
+            case 0:
+                idx=R.raw.dogbark08;
+                ylabelInt=0;
+                break;
+            case 1:
+                idx=R.raw.dogbark11;
+                ylabelInt=0;
+                break;
+            case 2:
+                idx=R.raw.dogbark14;
+                ylabelInt=0;
+                break;
+            case 3:
+                idx=R.raw.dogbark30;
+                ylabelInt=0;
+                break;
+            case 4:
+                idx=R.raw.dogbark33;
+                ylabelInt=0;
+                break;
+            case 5:
+                idx=R.raw.dogbark38;
+                ylabelInt=0;
+                break;
+            case 6:
+                idx=R.raw.babycry01;
+                ylabelInt=1;
+                break;
+            case 7:
+                idx=R.raw.babycry03;
+                ylabelInt=1;
+                break;
+            case 8:
+                idx=R.raw.babycry06;
+                ylabelInt=1;
+                break;
+            case 9:
+                idx=R.raw.babycry15;
+                ylabelInt=1;
+                break;
+            case 10:
+                idx=R.raw.babycry22;
+                ylabelInt=1;
+                break;
+            case 11:
+                idx=R.raw.babycry26;
+                ylabelInt=1;
+                break;
+            case 12:
+                idx=R.raw.babycry34;
+                ylabelInt=1;
+                break;
+            case 13:
+                idx=R.raw.chainsaw01;
+                ylabelInt=3;
+                break;
+
+            case 14:
+                idx=R.raw.chainsaw03;
+                ylabelInt=3;
+                break;
+            case 15:
+                idx=R.raw.chainsaw14;
+                ylabelInt=3;
+                break;
+            case 16:
+                idx=R.raw.chainsaw15;
+                ylabelInt=3;
+                break;
+            case 17:
+                idx=R.raw.chainsaw33;
+                ylabelInt=3;
+                break;
+            case 18:
+                idx=R.raw.chainsaw38;
+                ylabelInt=3;
+                break;
+            case 19:
+                idx=R.raw.clocktick11;
+                ylabelInt=4;
+                break;
+            case 20:
+                idx=R.raw.clocktick17;
+                ylabelInt=4;
+                break;
+            case 21:
+                idx=R.raw.clocktick19;
+                ylabelInt=4;
+                break;
+            case 22:
+                idx=R.raw.clocktick31;
+                ylabelInt=4;
+                break;
+            case 23:
+                idx=R.raw.clocktick32;
+                ylabelInt=4;
+                break;
+            case 24:
+                idx=R.raw.clocktick34;
+                ylabelInt=4;
+                break;
+            case 25:
+                idx=R.raw.dogbark08;
+                ylabelInt=0;
+                break;
+            case 26:
+                idx=R.raw.dogbark11;
+                ylabelInt=0;
+                break;
+            case 27:
+                idx=R.raw.dogbark14;
+                ylabelInt=0;
+                break;
+            case 28:
+                idx=R.raw.dogbark30;
+                ylabelInt=0;
+                break;
+            case 29:
+                idx=R.raw.dogbark33;
+                ylabelInt=0;
+                break;
+            case 30:
+                idx=R.raw.dogbark38;
+                ylabelInt=0;
+                break;
+            case 31:
+                idx=R.raw.firecrack04;
+                ylabelInt=4;
+                break;
+            case 32:
+                idx=R.raw.firecrack11;
+                ylabelInt=4;
+                break;
+            case 33:
+                idx=R.raw.firecrack04;
+                ylabelInt=4;
+                break;
+            case 34:
+                idx=R.raw.firecrack11;
+                ylabelInt=4;
+                break;
+            case 35:
+                idx=R.raw.firecrack13;
+                ylabelInt=4;
+                break;
+            case 36:
+                idx=R.raw.firecrack17;
+                ylabelInt=4;
+                break;
+            case 37:
+                idx=R.raw.firecrack19;
+                ylabelInt=4;
+                break;
+            case 38:
+                idx=R.raw.firecrack35;
+                ylabelInt=4;
+                break;
+            case 39:
+                idx=R.raw.firecrack38;
+                ylabelInt=4;
+                break;
+            case 40:
+                idx=R.raw.helicopter06;
+                ylabelInt=5;
+                break;
+            case 41:
+                idx=R.raw.helicopter07;
+                ylabelInt=5;
+                break;
+            case 42:
+                idx=R.raw.helicopter32;
+                ylabelInt=5;
+                break;
+            case 43:
+                idx=R.raw.helicopter33;
+                ylabelInt=5;
+                break;
+            case 44:
+                idx=R.raw.rain02;
+                ylabelInt=6;
+                break;
+            case 45:
+                idx=R.raw.rain06;
+                ylabelInt=6;
+                break;
+            case 46:
+                idx=R.raw.rain10;
+                ylabelInt=6;
+                break;
+            case 47:
+                idx=R.raw.rain15;
+                ylabelInt=6;
+                break;
+            case 48:
+                idx=R.raw.rain17;
+                ylabelInt=6;
+                break;
+            case 49:
+                idx=R.raw.rain19;
+                ylabelInt=6;
+                break;
+            case 50:
+                idx=R.raw.rain34;
+                ylabelInt=6;
+                break;
+            case 51:
+                idx=R.raw.rain39;
+                ylabelInt=6;
+                break;
+            case 52:
+                idx=R.raw.rooster01;
+                ylabelInt=7;
+                break;
+            case 53:
+                idx=R.raw.rooster06;
+                ylabelInt=7;
+                break;
+            case 54:
+                idx=R.raw.rooster14;
+                ylabelInt=7;
+                break;
+            case 55:
+                idx=R.raw.rooster16;
+                ylabelInt=7;
+                break;
+            case 56:
+                idx=R.raw.rooster17;
+                ylabelInt=7;
+                break;
+            case 57:
+                idx=R.raw.rooster22;
+                ylabelInt=7;
+                break;
+            case 58:
+                idx=R.raw.rooster23;
+                ylabelInt=7;
+                break;
+            case 59:
+                idx=R.raw.rooster32;
+                ylabelInt=7;
+                break;
+            case 60:
+                idx=R.raw.rooster40;
+                ylabelInt=7;
+                break;
+            case 61:
+                idx=R.raw.seawave03;
+                ylabelInt=8;
+                break;
+            case 62:
+                idx=R.raw.seawave12;
+                ylabelInt=8;
+                break;
+            case 63:
+                idx=R.raw.seawave15;
+                ylabelInt=8;
+                break;
+            case 64:
+                idx=R.raw.seawave27;
+                ylabelInt=8;
+                break;
+            case 65:
+                idx=R.raw.seawave29;
+                ylabelInt=8;
+                break;
+            case 66:
+                idx=R.raw.seawave33;
+                ylabelInt=8;
+                break;
+            case 67:
+                idx=R.raw.seawave38;
+                ylabelInt=8;
+                break;
+            case 68:
+                idx=R.raw.sneeze04;
+                ylabelInt=9;
+                break;
+            case 69:
+                idx=R.raw.sneeze05;
+                ylabelInt=9;
+                break;
+            case 70:
+                idx=R.raw.sneeze14;
+                ylabelInt=9;
+                break;
+            case 71:
+                idx=R.raw.sneeze27;
+                ylabelInt=9;
+                break;
+            case 72:
+                idx=R.raw.sneeze28;
+                ylabelInt=9;
+                break;
+            case 73:
+                idx=R.raw.sneeze32;
+                ylabelInt=9;
+                break;
+            case 74:
+                idx=R.raw.sneeze35;
+                ylabelInt=9;
+                break;
+            case 75:
+                idx=R.raw.sneeze39;
+                ylabelInt=9;
+                break;
+            case 76:
+                idx=R.raw.sneeze40;
+                ylabelInt=9;
+                break;
+
+        }*/
+        Log.i(LOGTAG,"file idx:"+step);
+        //InputStream is = getResources().openRawResource(idx);
+        InputStream is = getResources().openRawResource(idx);
+        wavData = new byte[is.available()];
+        String readBytes = String.format(Locale.US, "read bytes = %d", is.read(wavData));
+        Log.d(LOGTAG, readBytes);
+
+        is.close();
+
+        int len=wavData.length-44;
+        int readlen=32000*5;
+        if (len<32000*5)
+        {
+            readlen=len;
         }
-        byte[] retArr=new byte[32000];
-        for(int i=45;i<32043;i++)
-            retArr[i-45]=wavData[i];
-        //Arrays.copyOfRange(wavData,45,32043);
-        retArr[31998]=retArr[31997];
-        retArr[31999]=retArr[31998];
+
+        byte[] retArr=new byte[32000*5];
+        System.arraycopy(wavData,44,retArr,0,readlen);
+        for(int i=len;i<32000*5;i++)
+            retArr[i]=0;
         return retArr;
     }
 
 
 
+    public static SaveConfig transferConfig(){
+        return mSaveCfg;
+    }
+
+    public static void returnConfig(SaveConfig cfg){
+        mSaveCfg=cfg;
+    }
 
 
 

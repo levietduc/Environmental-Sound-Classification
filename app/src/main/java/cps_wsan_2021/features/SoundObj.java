@@ -5,34 +5,140 @@ import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
 
-import cps_wsan_2021.FFT.Complex;
-import cps_wsan_2021.FFT.FFT1;
-
 public class SoundObj {
-    short[] mSoundData;
-    float mSampRate=16000.0f;
-    int mNFFT=512;
-    float mHopeSize=0.02f;
-    float mHopeStride=0.02f;
-    float mDbfilt=-54;
-    int mFeatureMode=3;
+    final static float PRESET_LOW_FREQ = 300.0f;
+    final static float PRESET_POWER_LOWFILT = -52.0f;
 
-    public SoundObj(byte[]data, float sampl, int nfft, float window,float stride,float filt, int mode)
-    {
-        ShortBuffer shortbuff= ByteBuffer.wrap(data).order(ByteOrder.BIG_ENDIAN).asShortBuffer();
+    SoundData mSoundData;
+    short[] mDataToProc;
+    byte[] mWindDataByte;
+    int mSampRate=16000;
+    int mNFFT=512;
+    float mFrameLength =0.02f;
+    float mHopStride=0.02f;
+    float mDbfilt=PRESET_POWER_LOWFILT;
+    int mFeatureMode=3;
+    boolean mZeroPad=false;
+    float mLowFreq=300;
+    float mHighFreq=8000;
+    float mPreEmphCoff=0.98f;
+    int mPreEmphShift=1;
+    float[] mPreBuff=new float[64];
+    float[] mEndOfSignBuff=new float[64];
+    int mNextOffset=0;
+
+    /*init memory and windows to store streamed audio data
+    //contScanWindSize: size of windows to be extracted for features
+    //contScanWindStride: sliding stride*/
+    public SoundObj(int samplingRate, int timeSeriesWindSize, int timeSeriesWindInc,
+                    int nFFT, float frameLength,float frameStride,
+                    float filtdB, boolean zeropad,
+                    int mode)
+    {//for spectrogram mode
+
+        mSoundData=new SoundData((int)samplingRate,timeSeriesWindSize,timeSeriesWindInc);
+        mSampRate=samplingRate;
+        mHighFreq=mSampRate/2.0f;
+        mNFFT=nFFT;
+        mFrameLength =frameLength;
+        mHopStride=frameStride;
+        mDbfilt=filtdB;
+        mZeroPad=zeropad;
+        mFeatureMode=mode;
+
+    }
+/*
+    public SoundObj(byte[]data, float sampl, int nfft, float windowLen,float stride,float filt,
+                    float lowfreq, float highfreq,int mode)
+    {//for MFE mode
+        ShortBuffer shortbuff= ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
         mSoundData = new short[shortbuff.limit()];
         shortbuff.get(mSoundData);
-        for (int i=1;i<=16000; i++) mSoundData[i-1]=(short)i;
-        //mSoundData= Arrays.copyOf(data,data.length);
         mSampRate=sampl;
+        if(highfreq>0)
+            mHighFreq=highfreq;
+        else
+            mHighFreq=sampl/2;
+
+        if(lowfreq<=0)
+            mLowFreq=PRESET_LOW_FREQ;
+        else
+            mLowFreq=lowfreq;
         mNFFT=nfft;
-        mHopeSize=window;
+        mHopeSize=windowLen;
         mHopeStride=stride;
         mDbfilt=filt;
         mFeatureMode=mode;
+
+        if (mPreEmphShift < 0) {
+            mPreEmphShift = data.length + mPreEmphShift;
+        }
+        // we need to get the shift bytes from the end of the buffer...
+        System.arraycopy(data,data.length-mPreEmphShift,mEndOfSignBuff,0,mPreEmphShift);
+
+
     }
 
-    public double[][] normalizeInp(double[][] inp)
+
+
+
+    public SoundObj(byte[]data, float sampl, int nfft, float windowLen,float stride,
+                    float lowfreq, float highfreq,float preEmphCoff, int preEmpShift,
+                    int mode)
+    {//for MFCC mode
+        ShortBuffer shortbuff= ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        mSoundData = new short[shortbuff.limit()];
+        shortbuff.get(mSoundData);
+        mSampRate=sampl;
+        if(highfreq>0)
+            mHighFreq=highfreq;
+        else
+            mHighFreq=sampl/2;
+
+        if(lowfreq<=0)
+            mLowFreq=PRESET_LOW_FREQ;
+        else
+            mLowFreq=lowfreq;
+        mNFFT=nfft;
+        mHopeSize=windowLen;
+        mHopeStride=stride;
+        mFeatureMode=mode;
+        mPreEmphCoff=preEmphCoff;
+        mPreEmphShift=preEmpShift;
+    }*/
+
+    public Float[] getSpectrogram(byte[]data)
+    {
+        boolean res;
+        Float[] flatsp=null;
+        byte[] calArr;
+        calArr=mSoundData.addByteArr(data);//add new data to buffer
+        if(calArr!=null)
+        {//have enough data to proceed
+            ShortBuffer shortbuff= ByteBuffer.wrap(calArr).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+            mDataToProc = new short[shortbuff.limit()];
+            shortbuff.get(mDataToProc);
+            double[][] pwrspec=spectrogram(mDataToProc); //Todo
+            int rows=pwrspec.length;
+            int cols=pwrspec[0].length;
+            flatsp=new Float[rows*cols];
+            int pos=0;
+            for(int i=0;i<rows;i++)
+            {
+                for(int j=0;j<cols;j++) {
+                    pos = i * cols + j;
+                    flatsp[pos] = (Float)(float)pwrspec[i][j];
+                }
+            }
+        }
+        return flatsp;
+    }
+
+    public void resetSoundBuff(){
+        mSoundData.resetSoundData();
+    }
+
+    private double[][] normalizeInp(double[][] inp)
     {
         double[][] retArr=null;
         if(inp==null) return retArr;
@@ -81,7 +187,7 @@ public class SoundObj {
      */
     private double[][] stack_frames(
             short[] data,
-            float sampling_frequency,
+            int sampling_frequency,
             float frame_length,
             float stride,
             boolean zero_padding)
@@ -149,10 +255,11 @@ public class SoundObj {
      * @param fft_points (int): The length of FFT. If fft_length is greater than frame_len, the frames will be zero-padded.
      * @returns power_spectrum 1/N*mag(FFT)
      */
-    double[] power_spectrum(double[] frame, int fft_points)
+    private double[] power_spectrum(double[] frame, int fft_points)
     {
-        double[] magSpec = new double[fft_points/2];
-        double[] logmagSpec = new double[fft_points/2];
+        double[] magSpec = new double[fft_points];
+        double[] halfmagSpec=new double[fft_points/2+1];
+        double[] logmagSpec = new double[fft_points/2+1];
 
         FFT fftv=new FFT();
         double[] inputfr=new double [fft_points];
@@ -166,57 +273,97 @@ public class SoundObj {
             inputfr=Arrays.copyOf(frame,frame.length);
         }
 
-
-        double temp;
-        Complex[] y;
-        Complex[] complexSignal = new Complex[fft_points/2];
-        double[] absSignal = new double[fft_points / 2];
-
-
-        for (int i = 0; i < fft_points / 2; i++) {
-            //temp = (double) ((data[2 * i] & 0xFF) | (data[2 * i + 1] << 8)) / 32768.0F;
-            complexSignal[i] = new Complex(inputfr[i], 0.0);
-        }
-        y = FFT1.fft(complexSignal); // --> Here I use FFT class
-        for (int i = 0; i < (fft_points /2); i++) {
-            magSpec[i] = Math.sqrt(Math.pow(y[i].re(), 2) + Math.pow(y[i].im(), 2));
-        }
-
-/*
         fftv.process(inputfr);
 
         for (int m = 0; m < fft_points; m++) {
             magSpec[m] = fftv.real[m] * fftv.real[m] + fftv.imag[m] * fftv.imag[m];
-        }*/
-        for (int ix = 0; ix < fft_points/2; ix++) {
-            //magSpec[ix] = (1.0 / (float)(fft_points)) * (magSpec[ix]*magSpec[ix]);
-            magSpec[ix]=(magSpec[ix]*magSpec[ix]);
-            if(magSpec[ix]==0) magSpec[ix]=1e-10; //to deal with log(0)
-            logmagSpec[ix]=(2.0 / (float)(fft_points))*Math.log10(magSpec[ix]);
+            magSpec[m]/=fft_points;
+        }
 
+        //halfFFT[0]=magSpec[0];
+        //halfFFT[fft_points/2-1]=magSpec[fft_points/2-1]
+        for (int i=0;i<fft_points/2+1;i++)
+        {
+            halfmagSpec[i]=magSpec[i];
+        }
+        float noise_floor_db=-52.0f;
+        float noise=noise_floor_db*-1.0f;
+        float noise_scale=1.0f / ((noise_floor_db * -1.0f) + 12.0f);
+
+        for (int ix = 0; ix < fft_points/2+1; ix++) {
+            //magSpec[ix] = (1.0 / (float)(fft_points)) * (magSpec[ix]*magSpec[ix]);
+            //magSpec[ix]=(magSpec[ix]*magSpec[ix]);
+            if(halfmagSpec[ix]==0) halfmagSpec[ix]=1e-10; //to deal with log(0)
+            logmagSpec[ix]=10.0*Math.log10(halfmagSpec[ix]);
+
+            logmagSpec[ix]=(logmagSpec[ix]+noise)*noise_scale;
+            if(logmagSpec[ix]<0)
+            {
+                logmagSpec[ix]=0;
+            }
         }
 
         return logmagSpec;
     }
 
-    public double[][] spectrogram()
-
+    private double[][] spectrogram(short[] data)
     {
-        double[][] stackdata=stack_frames(mSoundData,mSampRate,
-                mHopeSize,mHopeStride,false);
+        //divide data window into frames for power spectrum calculation
+        double[][] stackdata=stack_frames(data,mSampRate,
+                mFrameLength,mHopStride,false);
 
         // normalize data (only when version is above 3)
         double[][] normData =normalizeInp(stackdata);
+
         int rows=normData.length;
         double[][] spectro= new double[rows][];
+        //calculate power spectrum for each frame
         for(int i=0;i<rows;i++) {
             spectro[i] =power_spectrum (normData[i],mNFFT);
         }
         return spectro;
     }
 
+    public byte[] getSoundData()
+    {
+        return mSoundData.getSoundData();
+    }
+
+/*
+    public float[] mfe()
+    {
+        float[] preEmData;
+        PreEmphasis preEmp=new PreEmphasis(mSoundData,mPreEmphShift,mPreEmphCoff,true);
+        preEmData=preEmp.get_data(0,mSoundData.length);
 
 
+    }
+*/
 
+    public static void scale1D(float[]data, float scale)
+    {
+        if (scale == 1.0f) return;
+
+        for (int ix = 0; ix < data.length; ix++) {
+            data[ix] =data[ix]*scale;
+        }
+    }
+    public static void scale2D(float[][]data, float scale)
+    {
+        if (scale == 1.0f) return;
+        for (int ix = 0; ix < data.length; ix++) {
+            for (int jx=0; jx<data[0].length;jx++) {
+                data[ix][jx] =data[ix][jx]*scale;
+            }
+        }
+    }
+
+    public short[] byteToShortArr(byte[] in, ByteOrder order)
+    {//boolean=0:
+        ShortBuffer shortbuff= ByteBuffer.wrap(in).order(order).asShortBuffer();
+        short[] retData = new short[shortbuff.limit()];
+        shortbuff.get(retData);
+        return retData;
+    }
 
 }
