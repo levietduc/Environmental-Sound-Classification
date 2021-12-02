@@ -2,6 +2,8 @@ package cps_wsan_2021.features;
 
 import java.util.Arrays;
 
+import cps_wsan_2021.ConfigConst;
+
 public class SoundData {
     private int mSoundWindSize = 16000 * ConfigConst.SOUND_DATA_SIZE;
     private int mSlideWindSize = 8000 * ConfigConst.SOUND_DATA_SIZE;

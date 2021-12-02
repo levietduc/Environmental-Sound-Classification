@@ -103,13 +103,14 @@
                     android:text="START CLASSIFY" />
 
             </LinearLayout>
+
             <TextView
                 android:id="@+id/logSoundEvent"
                 android:layout_width="match_parent"
-                android:layout_height="140dp"
+                android:layout_height="117dp"
                 android:enabled="true"
-                android:scrollbars="vertical"
                 android:gravity="bottom"
+                android:scrollbars="vertical"
                 android:textSize="10sp" />
 
 
@@ -119,7 +120,7 @@
             <LinearLayout
                 android:id="@+id/clusterHeadLinearLayout"
                 android:layout_width="match_parent"
-                android:layout_height="380dp"
+                android:layout_height="332dp"
                 android:layout_alignParentBottom="true"
                 android:orientation="vertical"
 
@@ -176,49 +177,48 @@
                 </LinearLayout>
 
 
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:id="@+id/TxPowerText"
+                        android:layout_width="92dp"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:enabled="false"
+                        android:foregroundTint="@color/background"
+                        android:freezesText="true"
+                        android:text="Tx Power"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textColor="#3F51B5"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
 
-                        <TextView
-                            android:id="@+id/TxPowerText"
-                            android:layout_width="92dp"
-                            android:layout_height="wrap_content"
-                            android:enabled="false"
-                            android:foregroundTint="@color/background"
-                            android:freezesText="true"
-                            android:text="Tx Power"
-                            android:textAppearance="@style/TextAppearance.AppCompat.Large"
-                            android:textColor="#3F51B5"
-                            android:textSize="18sp"
-                            android:textStyle="bold" />
+                    <Spinner
+                        android:id="@+id/selectTxPowerSpinner"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:entries="@array/Tx_power"
+                        android:spinnerMode="dropdown" />
 
-                        <Spinner
-                            android:id="@+id/selectTxPowerSpinner"
-                            android:layout_width="wrap_content"
-                            android:layout_height="match_parent"
-                            android:entries="@array/Tx_power"
-                            android:spinnerMode="dropdown" />
+                    <TextView
+                        android:id="@+id/textView2"
+                        android:layout_width="6dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Name" />
 
-                        <TextView
-                            android:id="@+id/textView2"
-                            android:layout_width="6dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Name" />
+                    <EditText
+                        android:id="@+id/txtName"
+                        android:layout_width="12dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ems="10"
+                        android:inputType="textPersonName"
+                        android:text="Clh" />
 
-                        <EditText
-                            android:id="@+id/txtName"
-                            android:layout_width="12dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:ems="10"
-                            android:inputType="textPersonName"
-                            android:text="Clh" />
-
-                    </LinearLayout>
+                </LinearLayout>
 
                 <LinearLayout
                     android:id="@+id/clhButtonLayout"
@@ -237,13 +237,6 @@
                         android:text="Start" />
 
                     <Button
-                        android:id="@+id/clhDiscoverButton"
-                        android:layout_width="170dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Discover" />
-
-                    <Button
                         android:id="@+id/clearLogClhButton"
                         android:layout_width="149dp"
                         android:layout_height="wrap_content"
@@ -256,12 +249,11 @@
                 <TextView
                     android:id="@+id/clhLogtext"
                     android:layout_width="match_parent"
-                    android:layout_height="176dp"
+                    android:layout_height="168dp"
                     android:enabled="true"
                     android:gravity="bottom"
                     android:scrollbars="vertical"
                     android:textSize="10sp" />
-
 
 
             </LinearLayout>

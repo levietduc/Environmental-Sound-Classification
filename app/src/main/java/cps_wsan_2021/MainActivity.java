@@ -82,7 +82,6 @@ import cps_wsan_2021.common.MessageDialogFragment;
 import cps_wsan_2021.common.PCMtoWAV;
 import cps_wsan_2021.common.PermissionRationaleDialogFragment;
 import cps_wsan_2021.common.Utils;
-import cps_wsan_2021.features.ConfigConst;
 import cps_wsan_2021.features.MFCCnew;
 import cps_wsan_2021.features.SoundObj;
 import cps_wsan_2021.thingy.ThingyService;
@@ -142,8 +141,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private EditText mtxtClhNameInp;
 
     private int ylabelInt;
-    private final static String[] ylabelStr={"dogbark","babycry","chainsaw", "clocktick",
-            "firecrack", "helicopter", "rain", "rooster", "seawave", "sneeze"};
+    private final static String[] ylabelStr=ConfigConst.ylabelStr;
     private int[] mTruePos={0,0,0,0,0,0,0,0,0,0};
 
     private Spinner mTxPowerSelect;
