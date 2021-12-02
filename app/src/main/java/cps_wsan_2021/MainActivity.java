@@ -54,6 +54,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -1241,9 +1242,30 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
                         ClhAdvertisedData data =procList.get(0);
                         byte[] dataArr=data.getParcelClhData();
-                        mClhLogText.append("Pr:");
+                        int sourceID=(int)dataArr[0];
+                        int hops=(int)dataArr[4];
+                        byte[] thingyByte=new byte[2];
+                        thingyByte[0]=dataArr[6];
+                        thingyByte[1]=dataArr[7];
+                        int hour=dataArr[8];
+                        int min=dataArr[9];
+                        int sec=dataArr[10];
+                        int status=dataArr[11]; //vinhstop
+                        String aString = null;
+                        try {
+                            aString = new String(thingyByte, "UTF-8");
+                        } catch (UnsupportedEncodingException e) {
+                            e.printStackTrace();
+                        }
+                        String str="From Clh"+sourceID+", Thingy"
+                                +aString +",hops:" +hops
+                                +",@"+hour+":"+min+":"+sec
+                                +",classify result:"+ ylabelStr[(int)status]+"\r\n";
+                        mClhLogText.append(str);
+
+                        /*mClhLogText.append("Pr:");
                         mClhLogText.append(Arrays.toString(dataArr));
-                        mClhLogText.append("\r\n");
+                        mClhLogText.append("\r\n");*/
                         procList.remove(0);
                     }
                 ArrayList<ClhAdvertisedData> fwdList=mClhScanner.getprintForwardList();
