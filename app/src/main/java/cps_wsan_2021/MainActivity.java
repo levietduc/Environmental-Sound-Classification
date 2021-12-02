@@ -1,5 +1,6 @@
 package cps_wsan_2021;
 
+import static androidx.core.content.PermissionChecker.PERMISSION_GRANTED;
 import static cps_wsan_2021.common.Utils.REQUEST_ACCESS_COARSE_LOCATION;
 import static cps_wsan_2021.common.Utils.REQUEST_ACCESS_FINE_LOCATION;
 import static cps_wsan_2021.common.Utils.checkIfVersionIsMarshmallowOrAbove;
@@ -39,6 +40,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.cps_wsan_2021_scratch.R;
 import com.example.cps_wsan_2021_scratch.ml.SoundClassification;
@@ -100,6 +102,7 @@ import no.nordicsemi.android.thingylib.utils.ThingyUtils;
 public class MainActivity extends AppCompatActivity implements  PermissionRationaleDialogFragment.PermissionDialogListener,
         ThingySdkManager.ServiceConnectionListener
 {
+    private final int READ_EXTERNAL_STORAGE_REQUEST = 0x1045;
 
     private static final String LOGTAG = "ClhMain" ;
     private static final int MAX_CONNECTED_THINGIES=3; //max thingies can be connected in a clusterhead
@@ -789,7 +792,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         }
 
 
-
+        requestPermission(); //request for write permission
 
         mThingySdkManager = ThingySdkManager.getInstance();
 
@@ -847,13 +850,14 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                 //intent.putExtra("Text",mSaveCfg);
                 startActivity(intent);*/
 
-                String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+                /*String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
                 Log.i(LOGTAG,"dir:"+baseDir);
                 pathSoundData=new File(baseDir,"soundData");
                 Log.i(LOGTAG,"dir:"+pathSoundData);
-                pathSoundData.mkdirs();
+                pathSoundData.mkdirs();*/
 
 //Pstest
+                /*
                 int allowtest=0;
                 if (allowtest==1) {
 
@@ -873,7 +877,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                             ConfigConst.SOUND_SPECTROGRAM_MODE);
 
                     //for testing a stream
-                /*
+
             for(int testidx=0;testidx<1000;testidx++) {
                 //int sz = ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE *mSampleRate * ConfigConst.SOUND_DATA_SIZE/1000;
                 byte[] soundtest = new byte[512];
@@ -896,7 +900,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         truePos++;
                     }
                 }
-            }*/
+            }
 
 
                     //for test 1 file
@@ -927,20 +931,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
                     float accu = (float) truePos / totalTests;
                 }
-/*
-               float[] mfcc1=getMFCCdata(soundtest);
-               Log.i(LOGTAG,Arrays.toString(mfcc1));
-               Float[] mfcc2=new Float[mfcc1.length];
-               for(int j=0;j<mfcc1.length;j++)
-               {
-                   mfcc2[j]=mfcc1[j];
-               }
-               soundClassify(mfcc2,"12:34:56:78:12:23");*/
 
-                             /* Intent intent = new Intent(MainActivity.this,
-                       SoundFileMenu.class);
-               intent.putExtra("Text","hello");
-               startActivity(intent);*/
+              */
            }
         });
 
@@ -1144,6 +1136,10 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     mSaveSoundButton.setText(getString(R.string.startSave));
                     mSaveEnable=false;
                     mClassifyButton.setEnabled(true);
+                    String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+                    pathSoundData=new File(baseDir,"soundData");
+                    Log.i(LOGTAG,"dir:"+pathSoundData);
+                    pathSoundData.mkdirs();
 
                     for (String key:soundFileName.keySet()) {
                         File file=soundFileName.get(key);
@@ -1286,10 +1282,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         /*pathSoundData=new File(getFilesDir(),"soundData");
         pathSoundData.mkdirs();
         Log.i("Test1","Sound data folder"+  pathSoundData);*/
-        String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
-        pathSoundData=new File(baseDir,"soundData");
-        Log.i(LOGTAG,"dir:"+pathSoundData);
-        pathSoundData.mkdirs();
+
 
     }
 
@@ -2360,7 +2353,20 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mSaveCfg=cfg;
     }
 
+    private boolean haveStoragePermission() {
+        int a;
+        a= ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
+        return (a == PERMISSION_GRANTED);
+    }
 
+    public void requestPermission() {
+        if (!haveStoragePermission()) {
+            String[] permissions = {Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE};
+
+            ActivityCompat.requestPermissions(this, permissions, READ_EXTERNAL_STORAGE_REQUEST);
+        }
+    }
 
 }
 
