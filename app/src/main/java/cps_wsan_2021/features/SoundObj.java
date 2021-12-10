@@ -115,6 +115,7 @@ public class SoundObj {
         calArr=mSoundData.addByteArr(data);//add new data to buffer
         if(calArr!=null)
         {//have enough data to proceed
+
             ShortBuffer shortbuff= ByteBuffer.wrap(calArr).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
             mDataToProc = new short[shortbuff.limit()];
             shortbuff.get(mDataToProc);

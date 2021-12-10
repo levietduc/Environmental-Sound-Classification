@@ -14,12 +14,4 @@
         <!-- Customize your theme here. -->
     </style>
 
-    <style name="Theme.CPS_WSAN_2021_scratch.NoActionBar">
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
-    </style>
-
-    <style name="Theme.CPS_WSAN_2021_scratch.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
-
-    <style name="Theme.CPS_WSAN_2021_scratch.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
 </resources>

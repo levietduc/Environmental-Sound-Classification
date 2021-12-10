@@ -105,7 +105,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private final int READ_EXTERNAL_STORAGE_REQUEST = 0x1045;
 
     private static final String LOGTAG = "ClhMain" ;
-    private static final int MAX_CONNECTED_THINGIES=3; //max thingies can be connected in a clusterhead
+    private static final int MAX_CONNECTED_THINGIES=2; //max thingies can be connected in a clusterhead
     private static final int SCAN_DURATION = 10000;
     private final static long THINGY_SCAN_DURATION = 5000; //scan Thingy for 5 sec
     private final static long THINGY_BATCH_SCAN_DURATION=500;
@@ -170,9 +170,13 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private CountDownTimer mReconnThingyTimer;
 
     private File pathSoundData;
+    private File pathSoundData2;
     //private File[] soundFileName=new File[10];
     private LinkedHashMap<String, File> soundFileName=new LinkedHashMap<>();
     private LinkedHashMap<String, File> soundFileNameWav=new LinkedHashMap<>();
+
+    private LinkedHashMap<String, File> soundFileName2=new LinkedHashMap<>();
+    private LinkedHashMap<String, File> soundFileNameWav2=new LinkedHashMap<>();
 
     private final int NUM_OF_SOUND_PACKET=312; //80000(5s)/25=312.5
     private byte[][] mSoundArr=new byte[MAX_CONNECTED_THINGIES][512*NUM_OF_SOUND_PACKET];
@@ -187,82 +191,16 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     private static SaveConfig mSaveCfg;
     private boolean mClassifyEnable=false;
 
-    private final static List<String> colorOrder=new ArrayList<String>(){{
-        add("yellow");
-        add("orange");
-        add("red");
-        add("blue");
-        add("green");
-        add("purple");
-        add("cyan");
-        add("darkYellow");
-        add("darkOrange");
-        add("darkRed");
-        add("darkGreen");
-        add("darkPurple");
-        add("darkCyan");
-        add("darkBlue");
+    private final static List<String> colorOrder=ConfigConst.colorOrder;
 
-    }};
-    private final static LinkedHashMap<String, Integer> colorDefine = new LinkedHashMap<String, Integer>() {{
-        put("yellow",0x00FF8000);
-        put("orange",0x00FF2000);
-        put("red",0x00FF0000);
-        put("green",0x0000FF00);
-        put("blue",0x000000FF);
-        put("purple",0x00FF0030);
-        put("cyan",0x0000FF80);
-        put("darkYellow",0x00502000);
-        put("darkOrange",0x00601000);
-        put("darkRed",0x00200000);
-        put("darkGreen",0x00002000);
-        put("darkBlue",0x00000020);
-        put("darkPurple",0x00400010);
-        put("darkCyan",0x00004020);
-
-    }};
+    private final static LinkedHashMap<String, Integer> colorDefine = ConfigConst.colorDefine;
 
     private boolean mSaveEnable=false;
-    private ClhParams getClusterHeadSettings()
-    {
-
-        mIsSink=mIsSinkCheckBox.isChecked();
-        Log.i(LOGTAG, "isSink:"+mIsSink);
-        int num= Integer.valueOf(mClhIDTextBox.getText().toString());
-        mClhID=(byte)(num);
-        Log.i(LOGTAG, "ClhID:"+mClhID);
-        mTxPower=(byte)mTxPowerSelect.getSelectedItemPosition();
-        Log.i(LOGTAG, "TxPower:"+mTxPower);
-
-        ClhParams clhsettings=new ClhParams();
-        clhsettings.ClhID=mClhID;
-        clhsettings.isSink=mIsSink;
-        clhsettings.TxPower=mTxPower;
-        //set cluster head name
-        String txtname;
-        if (mtxtClhNameInp.getText().toString().length()==0)
-        {
-            txtname= ClhConst.clusterHeadName;
-        }
-        else {
-            String txtStr = mtxtClhNameInp.getText().toString();
-            if (txtStr.length()>3)
-            {
-                txtname=txtStr.substring(txtStr.length()-4,txtStr.length()-1);
-            }
-            else
-            {
-                txtname=txtStr;
-            }
 
 
-        }
-        clhsettings.ClhName=txtname;
 
-        return clhsettings;
-    }
 
-    /* start scanning for avaible thingies
+    /* start scanning for available thingies
     result: List<ExtendedBluetoothDevice> mScanresults
      */
     public void startScanThingies() {
@@ -273,7 +211,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         final ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .setReportDelay(THINGY_BATCH_SCAN_DURATION)
-                .setUseHardwareBatchingIfSupported(false) //PStest
+                .setUseHardwareBatchingIfSupported(false) //PStest: in theory,it should be true, but true does not work on some phone
                 .setUseHardwareFilteringIfSupported(true)
                 .build();
         final List<ScanFilter> filters = new ArrayList<>();
@@ -284,7 +222,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mThingyScanner.startScan(filters, settings, scanThingiesCallback);
         mIsScanningThingy = true;
         mScanresults.clear(); //clear list of available Thingies
-
         //timer to stop scan
         mThingyScannerHandler=new Handler();
         mThingyScannerHandler. postDelayed(mScanTimeoutRunnable,THINGY_SCAN_DURATION); //Timer for scanning duration
@@ -311,6 +248,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         if(mScanresults.size()<=0)
         {
             mClusterLogText.append("Scan Done, List: Empty\r\n");
+            startReconnectTimer();
         }
         else {
             //display avalable Thingies names to textbox (mClhLog in SoundFragment)
@@ -323,18 +261,16 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             }
             mSaveScan=new ArrayList<>(mScanresults);
             enableAllClusterButtons();
+            if(mAutoConnect)
+            {
+                mConnectThingyButton.performClick();
+            }
 
         }
         enableAllClusterButtons();
     }
 
-    public void stopScanThingies() {
-        if (mIsScanningThingy) {
-            mThingyScanner.stopScan(scanThingiesCallback);
-            mThingyScannerHandler.removeCallbacks(mScanTimeoutRunnable);
-            mIsScanningThingy = false;
-        }
-    }
+
 
     private final ScanCallback scanThingiesCallback = new ScanCallback() {
         /*this event call back for scanning an individual device,
@@ -367,7 +303,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         mScanresults.get(pos).updateDevice(result);
                     }
                     Log.i(LOGTAG,"find device:"+device.name + ",addr:" +device.device.getAddress());
-
                 }
             }
         }
@@ -378,55 +313,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
     };
 
 
-    private final ScanCallback scanThingyCallback = new ScanCallback() {
-        /*this event call back for scanning an individual device, which assigned in  startScanDevice
-            If device is found, then it will stop scanning and connect to that device
-         */
-        @Override
-        public void onScanResult(final int callbackType, @NonNull final ScanResult result) {
-
-            final BluetoothDevice device = result.getDevice();
-            //if (device.equals(mDevice)) {
-            Log.i(LOGTAG,"scan current device finish, start timer");
-            mClusterLogText.append("Found.\r\nConnecting...");
-            new Handler().post(new Runnable() {
-                @Override
-                public void run() {
-                    Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in onScanResult");
-                    mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);//stop timeout timer
-                    stopScanDevice();
-                    new Handler().postDelayed(new Runnable() { //wait device stop scanning before connecting
-                        @Override
-                        public void run() {
-                            Log.i(LOGTAG,"start connect "+device.getAddress()+" after delay 200 after finnish Scanning");
-                            connect(device);
-                        }
-                    }, 200);
-                }
-            });
-        }
-
-        /*this event call back for scanning multiple devices
-        this for HTC
-        */
-        @Override
-        public void onBatchScanResults(final List<ScanResult> results) {
-            Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in onScanResult");
-            mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);//stop timeout timer
-            stopScanDevice();
-            new Handler().postDelayed(new Runnable() { //wait device stop scanning before connecting
-                @Override
-                public void run() {
-                    Log.i(LOGTAG,"start connect "+mDevice.getAddress()+" after delay 200 after finnish Scanning");
-                    connect(mDevice);
-                }
-            }, 200);
-        }
-        @Override
-        public void onScanFailed(final int errorCode) {
-            // should never be called
-        }
-    };
 
     /*this method filters the list of devices resulted after finishing scanning for available Thingies
         return the approprated devices as List<BluetoothDevice>
@@ -485,13 +371,6 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             tempRs.remove(maxBlT);
         }
 
-
-       /* for(ExtendedBluetoothDevice device:readyThingy)
-        {
-
-                retList.add(device.device);
-        }*/
-
         Log.i("ClhMain","ready list:" + retList.toString());
         return retList;
     }
@@ -516,12 +395,11 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mClusterLogText.append("Searching...");
         startScanDevice(mExtDevice);
         Log.i(LOGTAG,"start(mThingyScannerRunable)");
-        mThingyScannerHandler.postDelayed(mThingyScannerRunable,SCAN_DURATION); //timer for connect and discover each device
+        mThingyScannerHandler.postDelayed(mThingyScannerRunable,SCAN_DURATION); //10s timeout scan current device
     }
-
     /*fail connecting to a device,
-     stop scanning or disconnect to current device, continue next one
-    */
+ stop scanning or disconnect to current device, continue next one
+*/
     final Runnable mThingyScannerRunable = new Runnable() {
         @Override
         public void run()  {
@@ -535,6 +413,68 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             nextThingy(false);
         }
     };
+
+    /*this event call back for scanning an individual device, which assigned in  startScanDevice
+    If device is found, then it will stop scanning and connect to that device
+ */
+    private final ScanCallback scanThingyCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(final int callbackType, @NonNull final ScanResult result) {
+
+            final BluetoothDevice device = result.getDevice();
+            //if (device.equals(mDevice)) {
+            Log.i(LOGTAG,"scan current device finish, start timer");
+            mClusterLogText.append("Found.\r\nConnecting...");
+            Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in onScanResult");
+            mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);//stop timeout timer
+            stopScanDevice();
+            new Handler().postDelayed(new Runnable() { //wait device stop scanning before connecting
+                @Override
+                public void run() {
+                    Log.i(LOGTAG,"start connect "+device.getAddress()+" after delay 200 after finnish Scanning");
+                    connect(device);
+                }
+            }, 200);
+            /*new Handler().post(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in onScanResult");
+                    mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);//stop timeout timer
+                    stopScanDevice();
+                    new Handler().postDelayed(new Runnable() { //wait device stop scanning before connecting
+                        @Override
+                        public void run() {
+                            Log.i(LOGTAG,"start connect "+device.getAddress()+" after delay 200 after finnish Scanning");
+                            connect(device);
+                        }
+                    }, 200);
+                }
+            });*/
+        }
+
+        /*this event call back for scanning multiple devices
+        this for HTC
+        */
+        @Override
+        public void onBatchScanResults(final List<ScanResult> results) {
+            Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in onScanResult");
+            mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);//stop timeout timer
+            stopScanDevice();
+            new Handler().postDelayed(new Runnable() { //wait device stop scanning before connecting
+                @Override
+                public void run() {
+                    Log.i(LOGTAG,"start connect "+mDevice.getAddress()+" after delay 200 after finnish Scanning");
+                    connect(mDevice);
+                }
+            }, 200);
+        }
+        @Override
+        public void onScanFailed(final int errorCode) {
+            // should never be called
+        }
+    };
+
+
 
     /*connect to next Thingy in the mAvaibleThingies list, or wrap up when finishing all items
     input:
@@ -556,6 +496,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             mClusterLogText.append("Device:" +mExtDevice.name +" Failed. \r\n");
 
         }
+        if(mReconnThingyTimer!=null) mReconnThingyTimer.cancel();
+
         Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in nextThingy");
         mThingyScannerHandler.removeCallbacks(mThingyScannerRunable); //stop time out timer of previous device
         Handler handler=new Handler();
@@ -569,34 +511,35 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     mRetryConnecting=false;
                     mThingyListIndex++;
                 }
-                mThingyListIndex=selectNextThingies(mThingyListIndex, mAvaibleThingies);
+                Log.i(LOGTAG, "Old Thingy id:"+mThingyListIndex);
+                mThingyListIndex= selectThingy(mThingyListIndex, mAvaibleThingies);
+                Log.i(LOGTAG, "New Thingy id:"+mThingyListIndex);
+
                 //find a device to connect
                 if(mThingyListIndex!=-1)
                     connectSelectedDevice(mAvaibleThingies, mThingyListIndex); //connect next device
                 else {
                     //finished all items
 
-
-                    mAutoConnect=false;
+                    mThingyListIndex=0;
+                    //mAutoConnect=false;
                     enableAllClusterButtons();// ->enable sound stream of each the back to Sound Fragment
+                    startReconnectTimer();  //rescan after a period
+
                     List<BluetoothDevice> connectDevices = mThingySdkManager.getConnectedDevices();
                     if (connectDevices.size() > 0) {
                         Log.i(LOGTAG, "Connected List:");
                         mClusterLogText.append("Connected devices:");
                         for (BluetoothDevice dv : connectDevices) {
-                            mThingySdkManager.enableThingyMicrophone(dv, true,THINGY_MICROPHONE_SAMPLING_FREQ, true); //enable sound stream
-                            int color=colorDefine.get("darkBlue");
-                            int red=(color&0x00FF0000)>>16;
-                            int green=(color&0x0000FF00)>>8;
-                            int blue=(color&0x000000FF);
-                            mThingySdkManager.setConstantLedMode(dv,red,green,blue);
-                            if (mSoundObjects.containsKey(dv))
-                            {
-                                //SoundObj soundObj= mSoundObjects.get(dv);
-                                //soundObj.resetSoundBuff();
-                            }
-                            else
-                            {
+
+                            if (!mSoundObjects.containsKey(dv))
+                            {//new connected device
+                                mThingySdkManager.enableThingyMicrophone(dv, true,THINGY_MICROPHONE_SAMPLING_FREQ, true); //enable sound stream
+                                int color=colorDefine.get("darkBlue");
+                                int red=(color&0x00FF0000)>>16;
+                                int green=(color&0x0000FF00)>>8;
+                                int blue=(color&0x000000FF);
+                                mThingySdkManager.setConstantLedMode(dv,red,green,blue);
                                 SoundObj soundOb=new SoundObj(ConfigConst.SOUND_SAMPLING_RATE,
                                         ConfigConst.SOUND_TIME_SERIES_WINDOWS_SIZE,
                                         ConfigConst.SOUND_TIME_SERIES_WINDOWS_INC,
@@ -621,20 +564,51 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         mClassifyButton.setEnabled(true);
                         mClusterLogText.append("\r\n");
                         mClusterLogText.append("\r\n");
-
-                        //init sound var
-                        mSoundVar.clear();
+                         //init sound var
+                        /*mSoundVar.clear();
                         mSoundVarCount.clear();
                         int i=0;
                         for (BluetoothDevice dv : connectDevices) {
                             mSoundVar.put(dv.getAddress(),mSoundArr[i]);
                             mSoundVarCount.put(dv.getAddress(),0);
                             i++;
-                        }
+                        }*/
                     }
                 }
             }
         },100);
+    }
+
+
+    private void startReconnectTimer()
+    {
+        //start a timer to interval check connections
+        //if the connections are less than MAX, scan and connect the new
+        if(mReconnThingyTimer==null) {
+            Log.i(LOGTAG,"create ReconnectTimer ");
+            mReconnThingyTimer = new CountDownTimer(30000 , 5000) {
+                @Override
+                public void onTick(long millisUntilFinished) {//tick, not used
+
+                }
+
+                @Override
+                public void onFinish() {//timer expire, restart timer
+                    if (mAutoConnect == true) {
+                        Log.i(LOGTAG,"ReconnectTimer expire");
+                        if (mThingySdkManager.getConnectedDevices().size() < MAX_CONNECTED_THINGIES) {
+                            mScanClusterButton.performClick();
+                        }
+                    }
+                }
+            }.start();
+        }
+        else
+        {
+            Log.i(LOGTAG,"restart ReconnectTimer ");
+            mReconnThingyTimer.start();
+        }
+
     }
 
     @SuppressWarnings("MissingPermission")
@@ -646,27 +620,31 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         String name = mThingySdkManager.getDeviceName(dv) + "_" + currentTime + ".pcm";
         Log.i("Test1", name);
         File fname = new File(pathSoundData, name);
+        File fname2 = new File(pathSoundData2, name);
+
         soundFileName.put(dv.getAddress(), fname);
+        soundFileName2.put(dv.getAddress(), fname2);
         //soundFileName[i]=new File(pathSoundData,name);
         if (!fname.exists()) {
             try {
                 fname.createNewFile();
+                fname2.createNewFile();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
         return name;
     }
+
      /*select the an available (not connected yet) Thingy in list
     input:
-       List<BluetoothDevice> deviceList: list of Bluetooth devices to be connected
+       List<ExtendedBluetoothDevice> deviceList: list of Bluetooth devices to be connected
        int currentIndex: index of current device
     return: index of the available one in the list
     -1: if not found any one, or the number of the connected ones are exceed the MAX_THINGIES_CLUSTER
      0..MAX_THINGIES_CLUSTER-1: if found
     */
-
-    private int selectNextThingies(final int currentIndex, final List<ExtendedBluetoothDevice> deviceList)
+    private int selectThingy(final int currentIndex, final List<ExtendedBluetoothDevice> deviceList)
     {
         int selection=-1;
         int ind=currentIndex;
@@ -676,10 +654,10 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
         if((deviceList==null)||(deviceList.size()<=0)){ return selection;}
 
-        while((ind<deviceList.size())&&(ind<MAX_THINGIES_CLUSTER))
+        while((ind<deviceList.size())&&(ind<MAX_THINGIES_CLUSTER)&&(ind>=0))
         {
             extdevice=deviceList.get(ind);
-            if(connectedDevice.contains(extdevice.device)){//if current device is connected, go to next
+            if(connectedDevice.contains(extdevice.device)){//if current device has been connected, go to next
                 ind++;
             }
             else
@@ -767,6 +745,47 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         ///finished disconnecting all devices
         mClusterLogText.append(":Done\r\n");
         enableAllClusterButtons();
+    }
+
+    /* read configuration of cluster head on the screen
+     */
+    private ClhParams getClusterHeadSettings()
+    {
+
+        mIsSink=mIsSinkCheckBox.isChecked();
+        Log.i(LOGTAG, "isSink:"+mIsSink);
+        int num= Integer.valueOf(mClhIDTextBox.getText().toString());
+        mClhID=(byte)(num);
+        Log.i(LOGTAG, "ClhID:"+mClhID);
+        mTxPower=(byte)mTxPowerSelect.getSelectedItemPosition();
+        Log.i(LOGTAG, "TxPower:"+mTxPower);
+
+        ClhParams clhsettings=new ClhParams();
+        clhsettings.ClhID=mClhID;
+        clhsettings.isSink=mIsSink;
+        clhsettings.TxPower=mTxPower;
+        //set cluster head name
+        String txtname;
+        if (mtxtClhNameInp.getText().toString().length()==0)
+        {
+            txtname= ClhConst.clusterHeadName;
+        }
+        else {
+            String txtStr = mtxtClhNameInp.getText().toString();
+            if (txtStr.length()>3)
+            {
+                txtname=txtStr.substring(txtStr.length()-4,txtStr.length()-1);
+            }
+            else
+            {
+                txtname=txtStr;
+            }
+
+
+        }
+        clhsettings.ClhName=txtname;
+
+        return clhsettings;
     }
 
     @SuppressLint("SetTextI18n")
@@ -997,16 +1016,24 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
         mScanClusterButton.setOnClickListener(new View.OnClickListener(){
             @Override
             public void onClick(View v) {
-                if(mScanClusterButton.getText().toString()=="Scan")
+                if(mScanClusterButton.getText().toString().toUpperCase().equals("SCAN"))
                 {
                     startScanThingies();
-                    mScanClusterButton.setText("Stop");
+                    mScanClusterButton.setText("STOP");
                     mConnectThingyButton.setEnabled(false);
                     mDisconnectThingButton.setEnabled(false);
+                    mClusterLogText.append("Start scan\r\n");
+
+                    if(mReconnThingyTimer!=null)
+                    {
+                        mReconnThingyTimer.cancel();
+                        Log.i(LOGTAG,"cancel mReconnThingyTimer");
+                    }
                 }
                 else {
                     stopScanThingies();
-                    mScanClusterButton.setText("Scan");
+                    mAutoConnect=false;
+                    mScanClusterButton.setText("SCAN");
                 }
             }
         });
@@ -1015,35 +1042,9 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             @Override
             public void onClick(View v) {
 
-
-
-
                 mAutoConnect=true;
-                //set up timer for each packet advertising, expire interval in mAdvInterval
- /*               mReconnThingyTimer=new CountDownTimer(60000*60,30000) {
-                    @Override
-                    public void onTick(long millisUntilFinished) {//tick, not used
-                        if(mAutoConnect==true) {
-                            if (mThingySdkManager.getConnectedDevices().size() < MAX_CONNECTED_THINGIES){
-                                mThingyListIndex=selectNextThingies(0, mAvaibleThingies); //find a device to connect
-                                if(mThingyListIndex!=-1){
-                                    connectSelectedDevice(mAvaibleThingies,mThingyListIndex); //connect next device
-                                    disableAllClusterButtons();
-                                }
-
-                            };
-                        }
-
-                    }
-
-                    @Override
-                    public void onFinish() {//timer expire, advertising next packet
-                        if(mAutoConnect==true) mReconnThingyTimer.start();
-                    }
-                }.start();*/
-
-
                 mAvaibleThingies =filterThingies(mSaveScan); //get the list to be connected
+
                 /*---------connect to first device
                 next devices will be connect through
                 - callback of finishing current device via:
@@ -1052,7 +1053,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                       -> nextThingy
                 - or time out in mThingyScannerRunable -> nextThingy
                 ---------*/
-                mThingyListIndex=selectNextThingies(0, mAvaibleThingies); //find a device to connect
+                mThingyListIndex= selectThingy(0, mAvaibleThingies); //find a device to connect
                 if(mThingyListIndex!=-1){
                     connectSelectedDevice(mAvaibleThingies,mThingyListIndex); //connect next device
                     disableAllClusterButtons();
@@ -1118,12 +1119,24 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             public void onClick (View v){
                 List<BluetoothDevice> connectDevices = mThingySdkManager.getConnectedDevices();
                 String strbt=mSaveSoundButton.getText().toString();
+                String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
+                pathSoundData=new File(baseDir,"soundData");
+                pathSoundData2=new File(getApplicationInfo().dataDir,"soundData");
+                Log.i(LOGTAG,"dir:"+pathSoundData);
+                pathSoundData.mkdirs();
+                pathSoundData2.mkdirs();
+                Log.i(LOGTAG,"pathSoundData2:"+pathSoundData2.getName());
+                Log.i(LOGTAG,"pathSoundData2:"+getApplicationInfo().dataDir.toString());
+
+
+
                 if(strbt.equals(getString(R.string.startSave)))
                 {//start save sound data to file .pcm
                     mSaveSoundButton.setText(getString(R.string.stopSave));
                     mClassifyButton.setEnabled(false);
 
                     soundFileName.clear();
+                    soundFileName2.clear();
                     for (BluetoothDevice dv : connectDevices) {
                         String str=createSaveFiles(dv);
                         mSoundEventLog.append("PCM:"+str+"\r\n");
@@ -1135,10 +1148,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     mSaveSoundButton.setText(getString(R.string.startSave));
                     mSaveEnable=false;
                     mClassifyButton.setEnabled(true);
-                    String baseDir = Environment.getExternalStorageDirectory().getAbsolutePath();
-                    pathSoundData=new File(baseDir,"soundData");
-                    Log.i(LOGTAG,"dir:"+pathSoundData);
-                    pathSoundData.mkdirs();
+
 
                     for (String key:soundFileName.keySet()) {
                         File file=soundFileName.get(key);
@@ -1154,60 +1164,32 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                             e.printStackTrace();
                         }
                     }
+
+                    for (String key:soundFileName2.keySet()) {
+                        File file=soundFileName2.get(key);
+                        String name=file.getName();
+                        String name2=name.replace(".pcm",".wav");
+                        File file2= new File(pathSoundData2,name2);
+                        soundFileNameWav2.put(key,file2);
+                        try {
+                            PCMtoWAV.convert(file,file2,1,THINGY_MICROPHONE_SAMPLING_FREQ,16);
+                            //mSoundEventLog.append("WAV:"+file3.getName()+"\r\n");
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     //init sound var
-                    mSoundVar.clear();
+                    /*mSoundVar.clear();
                     mSoundVarCount.clear();
                     int i=0;
                     for (BluetoothDevice dv : connectDevices) {
                         mSoundVar.put(dv.getAddress(),mSoundArr[i]);
                         mSoundVarCount.put(dv.getAddress(),0);
                         i++;
-                    }        final Handler handler=new Handler();
-                    handler. postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            handler.postDelayed(this, 1000); //loop every cycle
-                            ArrayList<ClhAdvertisedData> procList=mClhProcessor.getProcessDataList();
-                            for(int i=0; i<procList.size();i++)
-                            {
-                                if(i==10) break; //just display 10 line in one cycle
+                    }    */
 
-                                ClhAdvertisedData data =procList.get(0);
-                                byte[] dataArr=data.getParcelClhData();
-                                mClhLogText.append("Pr:");
-                                mClhLogText.append(Arrays.toString(dataArr));
-                                mClhLogText.append("\r\n");
-                                procList.remove(0);
-                            }
-                            ArrayList<ClhAdvertisedData> fwdList=mClhScanner.getprintForwardList();
-                            for(int i=0; i<fwdList.size();i++)
-                            {
-                                if(i==10) break; //just display 10 line in one cycle
-
-                                ClhAdvertisedData data =fwdList.get(0);
-                                byte[] dataArr=data.getParcelClhData();
-                                mClhLogText.append("Fw:");
-                                mClhLogText.append(Arrays.toString(dataArr));
-                                mClhLogText.append("\r\n");
-                                fwdList.remove(0);
-                            }
-
-                            ArrayList<ClhAdvertisedData> sendList=mClhAdvertiser.getprintSendList();
-                            for (int i = 0; i < sendList.size(); i++) {
-                                if (i == 10) break; //just display 10 line in one cycle
-
-                                ClhAdvertisedData data = sendList.get(0);
-                                byte[] dataArr = data.getParcelClhData();
-                                mClhLogText.append("S:");
-                                mClhLogText.append(Arrays.toString(dataArr));
-                                mClhLogText.append("\r\n");
-                                sendList.remove(0);
-                            }
-
-
-                        }
-                    }, 1000); //the time you want to delay in milliseconds
-                }
+                 }
             }
         });
 
@@ -1238,7 +1220,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                 ArrayList<ClhAdvertisedData> procList=mClhProcessor.getProcessDataList();
                     for(int i=0; i<procList.size();i++)
                     {
-                        if(i==10) break; //just display 10 line in one cycle
+                        //if(i==10) break; //just display 10 line in one cycle
 
                         ClhAdvertisedData data =procList.get(0);
                         byte[] dataArr=data.getParcelClhData();
@@ -1262,6 +1244,7 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                                 +",@"+hour+":"+min+":"+sec
                                 +",classify result:"+ ylabelStr[(int)status]+"\r\n";
                         mClhLogText.append(str);
+                        Log.i(LOGTAG,"Pr:"+str);
 
                         /*mClhLogText.append("Pr:");
                         mClhLogText.append(Arrays.toString(dataArr));
@@ -1271,19 +1254,20 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                 ArrayList<ClhAdvertisedData> fwdList=mClhScanner.getprintForwardList();
                 for(int i=0; i<fwdList.size();i++)
                 {
-                    if(i==10) break; //just display 10 line in one cycle
+                    //if(i==10) break; //just display 10 line in one cycle
 
                     ClhAdvertisedData data =fwdList.get(0);
                     byte[] dataArr=data.getParcelClhData();
                     mClhLogText.append("Fw:");
                     mClhLogText.append(Arrays.toString(dataArr));
                     mClhLogText.append("\r\n");
+                    Log.i(LOGTAG,"Fw:"+Arrays.toString(dataArr));
                     fwdList.remove(0);
                 }
 
                 ArrayList<ClhAdvertisedData> sendList=mClhAdvertiser.getprintSendList();
                 for (int i = 0; i < sendList.size(); i++) {
-                    if (i == 10) break; //just display 10 line in one cycle
+                    //if (i == 10) break; //just display 10 line in one cycle
 
                     ClhAdvertisedData data = sendList.get(0);
                     byte[] dataArr = data.getParcelClhData();
@@ -1291,9 +1275,9 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     mClhLogText.append(Arrays.toString(dataArr));
                     mClhLogText.append("\r\n");
                     sendList.remove(0);
+                    Log.i(LOGTAG,"S:"+Arrays.toString(dataArr));
+
                 }
-
-
             }
         }, 1000); //the time you want to delay in milliseconds
 
@@ -1329,31 +1313,17 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             Log.i(LOGTAG,"device connected in onDeviceConnected");
             mClusterLogText.append(":Connected.\r\n Discovering...");
 
-            if (!mConnectedBleDeviceList.contains(mExtDevice)) {
-                mConnectedBleDeviceList.add(mExtDevice);
-            }
-
-            if(mAutoConnect){//use for auto connect
-                Log.i(LOGTAG,"device connected in 1");
-
-            }
-            else
-            {//use for connect one Thingy
-                Log.i(LOGTAG,"device connected in 2");
-
-            }
-
         }
 
         @Override
         @SuppressWarnings("MissingPermission")
         public void onDeviceDisconnected(BluetoothDevice device, int connectionState) {
-            Log.i(LOGTAG,"device disconect");
+            Log.i(LOGTAG,"device disconect:"+device.getName());
             mClusterLogText.append("**"+device.getName() + " disconnected** \r\n");
 
             mSoundObjects.remove(device);
             //remove device from ext connected list
-            for(ExtendedBluetoothDevice exdv:mConnectedBleDeviceList)
+        /*    for(ExtendedBluetoothDevice exdv:mConnectedBleDeviceList)
             {
                 if (exdv.device.getAddress().equals(device.getAddress()))
                 {
@@ -1361,9 +1331,16 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     mConnectedBleDeviceList.remove(exdv);
                     break;
                 }
-            }
+            }*/
             enableAllClusterButtons(); //Todo: a bug here to enable buttons while connecting
             if(mAutoConnect){
+                for (ExtendedBluetoothDevice eBl:mAvaibleThingies) {
+                    if(eBl.device.getAddress().equals(device.getAddress()))
+                    {
+                        mExtDevice=eBl;
+                        Log.i(LOGTAG,"mExtDevice:"+mExtDevice.name);
+                    }
+                }
                 nextThingy(false); //reconnect
             }
             else {
@@ -1400,24 +1377,18 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             Log.i(LOGTAG,"discovery complete");
             mClusterLogText.append(":Discovered. \r\n Send Notification...");
             mThingySdkManager.enableBatteryLevelNotifications(device, true);
-
-            enableSoundNotifications(device, true); //enable receive sound data
             enableUiNotifications();
+            enableSoundNotifications(device, true); //enable receive sound data
             int color=colorDefine.get("darkBlue");
             int red=(color&0x00FF0000)>>16;
             int green=(color&0x0000FF00)>>8;
             int blue=(color&0x000000FF);
             mThingySdkManager.setConstantLedMode(device,red,green,blue);
 
-            //enableEnvironmentNotifications();
-            //enableMotionNotifications();
-
             if(!mWaitingMtuResponse)
             {//mWaitingMtuResponse is set in enableSoundNotifications, to change to MTU of BLE from 23 to 276
                 // if not using sound, the default MTU is 23, and go to next Thingy without waiting for MTU change
-                if(mAutoConnect){
-                    nextThingy(true);
-                }
+                   nextThingy(true);
             }
             else
             {//if using sound data, wait for MTU changing response from Thingy -> onMtuChangingCompleted
@@ -1428,11 +1399,9 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
 
         @Override
         public void onMtuChangingCompleted(BluetoothDevice device, int mtu){
-            Log.i(LOGTAG,"MTU changed" + mtu);
+            Log.i(LOGTAG,"MTU changed:" + mtu);
             mClusterLogText.append("Done...\r\n");
-            if(mAutoConnect){
-                nextThingy(true);
-            }
+            nextThingy(true);
         }
 
         @Override
@@ -1548,12 +1517,20 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                             //Log.i(LOGTAG, "process sound data of " + dv.getName() + " data size:" + data.length + ",duration:"+time2);
                             if(mSaveEnable==true){
                                 File file=soundFileName.get(dv.getAddress());
+                                File file2=soundFileName2.get(dv.getAddress());
                                 FileOutputStream writer = null;
+                                FileOutputStream writer2 = null;
+
                                 try {
                                     writer = new FileOutputStream(file, true);
                                     writer.write(data);
                                     writer.flush();
                                     writer.close();
+
+                                    writer2 = new FileOutputStream(file2, true);
+                                    writer2.write(data);
+                                    writer2.flush();
+                                    writer2.close();
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                 }
@@ -1601,8 +1578,8 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                                             String[] strtime = localDate2.toString().split(":");
                                             byte hour = Byte.parseByte(strtime[0]);
                                             byte min = Byte.parseByte(strtime[1]);
-                                            String[] strsec = strtime[2].toString().split(".");
-                                            byte sec = Byte.parseByte(strtime[0]);
+                                            String[] strsec = strtime[2].split("\\.");
+                                            byte sec = Byte.parseByte(strsec[0]);
                                             dataAdv[2]=hour;
                                             dataAdv[3]=min;
                                             dataAdv[4]=sec;
@@ -1663,6 +1640,15 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             Log.i(LOGTAG,"removeCallbacks(mThingyScannerRunable) in stopScanDevice");
             mThingyScannerHandler.removeCallbacks(mThingyScannerRunable);
             mIsScanningThingy = false;
+        }
+    }
+
+    public void stopScanThingies() {
+        if (mIsScanningThingy) {
+            mThingyScanner.stopScan(scanThingiesCallback);
+            mThingyScannerHandler.removeCallbacks(mScanTimeoutRunnable);
+            mIsScanningThingy = false;
+            Log.i(LOGTAG,"Stop scan in stopScanThingies, remove Callbacks mScanTimeoutRunnable");
         }
     }
 
