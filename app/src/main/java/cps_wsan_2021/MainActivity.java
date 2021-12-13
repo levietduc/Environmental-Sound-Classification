@@ -1536,7 +1536,11 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                                     writer.write(data);
                                     writer.flush();
                                     writer.close();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
 
+                                try {
                                     writer2 = new FileOutputStream(file2, true);
                                     writer2.write(data);
                                     writer2.flush();
