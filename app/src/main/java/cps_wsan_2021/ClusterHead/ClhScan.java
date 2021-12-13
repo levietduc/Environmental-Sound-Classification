@@ -39,7 +39,10 @@ public class ClhScan {
     private ClhParams mClhParams;
     private int mMinClhRssiThreshold;
     private String mClhScanName;
+    private Integer mRSSI=-150;
     private  ArrayList<ClhAdvertisedData> printForwardList;
+    private ArrayList<Integer> rssiprintForwardList;
+    private ArrayList<Integer> rssiProcessData;
 
     public ClhScan(){}
 
@@ -48,6 +51,8 @@ public class ClhScan {
         setAdvDataObject(clhAdvObj);
         setProcDataObject(clhProcDataObj);
         printForwardList=new ArrayList<ClhAdvertisedData>(64);
+        rssiprintForwardList=new ArrayList<>(64);
+        rssiProcessData=new ArrayList<>(64);
 
     }
 
@@ -225,6 +230,7 @@ public class ClhScan {
                 Log.i(LOG_TAG,"low RSSI");
                 return;
             }
+            mRSSI=result.getRssi();
 
             SparseArray<byte[]> manufacturerData = result.getScanRecord().getManufacturerSpecificData(); //get data
             processScanData(manufacturerData);
@@ -316,6 +322,8 @@ public class ClhScan {
                 //TODO: add your code here to process data from the source
                 //it can be the routing information or Thingy data or a command
                     mClhProcessData.addProcessPacketToBuffer(clhAdvData);
+                    rssiProcessData.add(mRSSI);
+
             }
             else {//add data to advertising list to forward
                 //TODO: add your code here to process data before forwarding
@@ -324,6 +332,7 @@ public class ClhScan {
                     mClhAdvertiser.addAdvPacketToBuffer(clhAdvData, false);
                     Log.i(LOG_TAG, "Add forwarding data to advertised list");
                     printForwardList.add(clhAdvData);
+                    rssiprintForwardList.add(mRSSI);
                 }
             }
         }
@@ -342,6 +351,16 @@ public class ClhScan {
     public ArrayList<ClhAdvertisedData> getprintForwardList()
     {
         return printForwardList;
+    }
+
+    public ArrayList<Integer> getrssiForwardList()
+    {
+        return rssiprintForwardList;
+    }
+
+    public ArrayList<Integer> getRssiProcessData()
+    {
+        return rssiProcessData;
     }
 
     public int setScanname(String name){

@@ -12,7 +12,7 @@ public class ClhParams {
     public boolean isSink=false;
     public byte ClhID=ClhConst.DEFAULT_CLUSTER_HEAD_ID;
     public long advertisingInterval=ClhConst.ADVERTISING_INTERVAL;
-    public static final int minClhRSSIThreshold=-100;
+    public static final int minClhRSSIThreshold=-120;
     public String ClhName=ClhConst.clusterHeadName;
 
 

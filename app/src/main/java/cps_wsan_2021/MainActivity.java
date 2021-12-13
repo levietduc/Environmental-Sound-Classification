@@ -1218,11 +1218,14 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
             public void run() {
                 handler.postDelayed(this, 1000); //loop every cycle
                 ArrayList<ClhAdvertisedData> procList=mClhProcessor.getProcessDataList();
-                    for(int i=0; i<procList.size();i++)
+                ArrayList<Integer> rssiProcList=mClhScanner.getRssiProcessData();
+
+                for(int i=0; i<procList.size();i++)
                     {
                         //if(i==10) break; //just display 10 line in one cycle
 
                         ClhAdvertisedData data =procList.get(0);
+                        Integer rssi=rssiProcList.get(0);
                         byte[] dataArr=data.getParcelClhData();
                         int sourceID=(int)dataArr[0];
                         int hops=(int)dataArr[4];
@@ -1242,7 +1245,9 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         String str="From Clh"+sourceID+", Thingy"
                                 +aString +",hops:" +hops
                                 +",@"+hour+":"+min+":"+sec
-                                +",classify result:"+ ylabelStr[(int)status]+"\r\n";
+                                +",classify result:"+ ylabelStr[(int)status]
+                                +". RSSI=" + rssi
+                                +"\r\n";
                         mClhLogText.append(str);
                         Log.i(LOGTAG,"Pr:"+str);
 
@@ -1250,8 +1255,10 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                         mClhLogText.append(Arrays.toString(dataArr));
                         mClhLogText.append("\r\n");*/
                         procList.remove(0);
+                        rssiProcList.remove(0);
                     }
                 ArrayList<ClhAdvertisedData> fwdList=mClhScanner.getprintForwardList();
+                ArrayList<Integer> rssiFwdList=mClhScanner.getrssiForwardList();
                 for(int i=0; i<fwdList.size();i++)
                 {
                     //if(i==10) break; //just display 10 line in one cycle
@@ -1260,12 +1267,15 @@ public class MainActivity extends AppCompatActivity implements  PermissionRation
                     byte[] dataArr=data.getParcelClhData();
                     mClhLogText.append("Fw:");
                     mClhLogText.append(Arrays.toString(dataArr));
+                    mClhLogText.append(". RSSI:"+rssiFwdList.get(0));
                     mClhLogText.append("\r\n");
                     Log.i(LOGTAG,"Fw:"+Arrays.toString(dataArr));
                     fwdList.remove(0);
+                    rssiFwdList.remove(0);
                 }
 
                 ArrayList<ClhAdvertisedData> sendList=mClhAdvertiser.getprintSendList();
+
                 for (int i = 0; i < sendList.size(); i++) {
                     //if (i == 10) break; //just display 10 line in one cycle
 
