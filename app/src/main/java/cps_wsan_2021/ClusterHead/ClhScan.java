@@ -1,5 +1,6 @@
 package cps_wsan_2021.ClusterHead;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -73,7 +74,7 @@ public class ClhScan {
     }
 
     private CountDownTimer mScanTimer1,mScanTimer2,mHistoryScanTimer;
-
+    @SuppressLint("MissingPermission")
     public int clhScanStart() {
         boolean result=true;
         byte[] advsettings=new byte[16];
@@ -199,6 +200,7 @@ public class ClhScan {
         return ClhErrors.ERROR_CLH_NO;
     }
 
+    @SuppressLint("MissingPermission")
     public void stopScanCLH()
     {
         //todo: add stop timer
